@@ -247,17 +247,31 @@ async function showSpine (v) {
   try {
     const atlasText = await (await fetch(atlasUrl)).text()
     const prefix = atlasUrl.replace(/[^/]*$/, '')
+    // 贴图在磁盘上的目录（v.spine.atlas 是本地绝对路径），fetch 失败时走主进程读文件兜底
+    const diskDir = String(v.spine.atlas || '').replace(/\\/g, '/').replace(/[^/]*$/, '')
     const pages = [...new Set([...atlasText.matchAll(/([^\s"']+?\.(?:png|jpe?g|webp))/gi)].map((m) => m[1]))]
     for (const name of pages) {
       try {
         const full = prefix + name
-        const blob = await (await fetch(full)).blob()
-        const dataUrl = await new Promise((ok, bad) => {
-          const r = new FileReader()
-          r.onload = () => ok(r.result)
-          r.onerror = () => bad(new Error('readAsDataURL 失败'))
-          r.readAsDataURL(blob)
-        })
+        let dataUrl = null
+        for (let i = 0; i < 3 && !dataUrl; i++) {
+          try {
+            const blob = await (await fetch(full)).blob()
+            dataUrl = await new Promise((ok, bad) => {
+              const r = new FileReader()
+              r.onload = () => ok(r.result)
+              r.onerror = () => bad(new Error('readAsDataURL 失败'))
+              r.readAsDataURL(blob)
+            })
+          } catch (e) {
+            if (i === 2 && window.companion.assetData) {
+              dataUrl = await window.companion.assetData(diskDir + name).catch(() => null)
+            } else {
+              await new Promise((ok) => setTimeout(ok, 200))
+            }
+          }
+        }
+        if (!dataUrl) throw new Error('预载三次均失败')
         assetManager.downloader.rawDataUris[full] = dataUrl
         assetManager.downloader.rawDataUris[name] = dataUrl
       } catch (e) { console.warn('[spine] 预载贴图失败', name, e.message) }
@@ -292,10 +306,15 @@ async function showSpine (v) {
     skeletonData = new SPINE.SkeletonBinary(new SPINE.AtlasAttachmentLoader(atlas)).readSkeletonData(skelData)
   }
   const skeleton = new SPINE.Skeleton(skeletonData)
-  const state = new SPINE.AnimationState(skeletonData)
+  // 所有 4.x 的 AnimationState 构造参数都是 AnimationStateData（不是 SkeletonData）：
+  // 直接传 SkeletonData 会让内部 this.data.skeletonData 为 undefined，
+  // 一调 setAnimation 就报 Cannot read properties of undefined (reading 'findAnimation')
+  const state = new SPINE.AnimationState(new SPINE.AnimationStateData(skeletonData))
   const idle = skeletonData.animations.find((a) => /idle|待机/i.test(a.name)) || skeletonData.animations[0]
   console.warn('[spine] 加载成功: 动画', skeletonData.animations.map((a) => a.name).join(','), '→ 播放', idle && idle.name)
-  if (idle) state.setAnimation(0, idle, true)
+  // setAnimation 在 4.0/4.1/4.2 里只认动画名字符串（内部 this.data.skeletonData.findAnimation(name)），
+  // 传 Animation 对象会在这些版本炸掉，所以统一传名字
+  if (idle) state.setAnimation(0, idle.name, true)
   let talkTrack = -1
   spineRuntime = {
     sig: atlasUrl + skelUrl,
@@ -324,7 +343,7 @@ async function showSpine (v) {
   })
   spineRuntime.playTalk = () => {
     const talk = skeletonData.animations.find((a) => /talk|speak|说话/i.test(a.name))
-    if (talk) { talkTrack = 1; state.setAnimation(1, talk, false) }
+    if (talk) { talkTrack = 1; state.setAnimation(1, talk.name, false) }
   }
   if (!spineRuntime.raf) {
     const loop = () => { if (spineRuntime && spineRuntime.render) spineRuntime.step(); requestAnimationFrame(loop) }

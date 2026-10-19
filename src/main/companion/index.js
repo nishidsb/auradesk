@@ -280,18 +280,18 @@ function registerIpc () {
     if (kind !== 'spine') return character.importAsset(charId, r.filePaths[0])
     // 归一化：正斜杠 + 统一小写扩展名判断
     let picked = r.filePaths.map((p) => path.normalize(p))
-    if (picked.length === 1) {
-      // 自动补齐：同目录找「同名」的 atlas / skel / json / png（忽略 _cover/_gesture 等不同主名）
-      const one = picked[0]
-      const dir = path.dirname(one)
-      const stem = path.basename(one).replace(/\.(atlas|skel|json|png)$/i, '')
-      const has = (ext) => picked.some((p) => new RegExp('\\.' + ext + '$', 'i').test(p) && path.basename(p, path.extname(p)) === stem)
-      const tryAdd = (ext) => {
+    // 自动补齐：对每个选中的主名（stem），同目录补齐同名 atlas / skel / json / png。
+    // 之前只在单选时补，选 atlas+skel 两个文件时 png 不会跟进来，
+    // 资产目录缺贴图 → 加载一直 Couldn't load image → 小蓝星
+    const stemOf = (p) => path.basename(p).replace(/\.(atlas|skel|json|png)$/i, '')
+    const isSpineExt = (p) => /\.(atlas|skel|json|png)$/i.test(p)
+    const stems = [...new Set(picked.filter(isSpineExt).map(stemOf))]
+    for (const stem of stems) {
+      const dir = path.dirname(picked.find((p) => isSpineExt(p) && stemOf(p) === stem))
+      for (const ext of ['.atlas', '.skel', '.json', '.png']) {
         const cand = path.join(dir, stem + ext)
-        if (!has(ext.slice(1)) && fs.existsSync(cand)) picked.push(cand)
+        if (!picked.some((p) => p.toLowerCase() === cand.toLowerCase()) && fs.existsSync(cand)) picked.push(cand)
       }
-      if (/\.(skel|json)$/i.test(one)) tryAdd('.atlas')
-      if (/\.atlas$/i.test(one)) { tryAdd('.skel'); tryAdd('.json'); tryAdd('.png') }
     }
     return picked.map((p) => character.importAsset(charId, p))
   })
@@ -300,6 +300,22 @@ function registerIpc () {
   pet.registerIpc(() => character.get(), patchCfg)
 
   ipcMain.handle('companion:asset-url', (_e, p) => character.assetUrl(p))
+
+  // 渲染层贴图兜底：自定义协议 fetch 偶发 Failed to fetch（Image 的 CORS 校验更严），
+  // 这里直接主进程读本地文件转 dataURL 返回，彻底绕开协议链路
+  ipcMain.handle('companion:asset-data', (_e, p) => {
+    try {
+      const abs = String(p || '').replace(/\\/g, '/')
+      if (!/^[a-zA-Z]:\//.test(abs) || !fs.existsSync(abs)) return null
+      const ext = (abs.match(/\.([a-z0-9]+)$/i) || [])[1] || ''
+      const mime = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' }[ext.toLowerCase()]
+      if (!mime) return null
+      return 'data:' + mime + ';base64,' + fs.readFileSync(abs).toString('base64')
+    } catch (e) {
+      log('[companion] asset-data 失败:', e && e.message)
+      return null
+    }
+  })
 
   ipcMain.handle('companion:send', (_e, text) => {
     const t = String(text || '').trim()

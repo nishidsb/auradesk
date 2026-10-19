@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('companion', {
   delCharacter: (id) => ipcRenderer.invoke('companion:del-character', id),
   importAsset: (charId, kind) => ipcRenderer.invoke('companion:import-asset', charId, kind),
   assetUrl: (p) => ipcRenderer.invoke('companion:asset-url', p),
+  assetData: (p) => ipcRenderer.invoke('companion:asset-data', p),
   transcribe: (b64, mime) => ipcRenderer.invoke('companion:transcribe', b64, mime),
   tts: (text) => ipcRenderer.invoke('companion:tts', text),
   win: (action) => ipcRenderer.invoke('companion:win', action),

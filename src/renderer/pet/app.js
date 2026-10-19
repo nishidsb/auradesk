@@ -18,6 +18,9 @@ function disposeVrm () {
 async function showVisual (char) {
   const v = (char && char.visual) || {}
   const mode = v.mode || 'still'
+  // 切出该模式才释放；同模式刷新交给 showSpine/showVrm 内部的 sig 判断跳过
+  if (mode !== 'spine') disposeSpine()
+  if (mode !== 'vrm') disposeVrm()
   $('stillImg').hidden = mode !== 'still'
   $('spineCanvas').hidden = mode !== 'spine'
   $('vrmCanvas').hidden = mode !== 'vrm'
@@ -141,6 +144,7 @@ async function showSpine (v) {
   console.warn('[pet spine] 加载成功: 动画', skeletonData.animations.map((a) => a.name).join(','), '→ 播放', idle && idle.name)
   // 4.0/4.1/4.2 的 setAnimation 只认动画名字符串，统一传名字
   if (idle) state.setAnimation(0, idle.name, true)
+  let firstFrame = true
   spineRuntime = {
     sig: atlasUrl + skelUrl,
     render: true,
@@ -153,9 +157,15 @@ async function showSpine (v) {
       const size = new SPINE.Vector2()
       skeleton.getBounds(offset, size, [])
       const s = Math.min(canvas.width / (size.x || 1), canvas.height / (size.y || 1)) * 0.95
+      if (firstFrame) {
+        firstFrame = false
+        console.warn('[pet spine] 首帧: canvas', canvas.width + 'x' + canvas.height, 'bounds', Math.round(offset.x) + ',' + Math.round(offset.y), Math.round(size.x) + 'x' + Math.round(size.y), 'scale', s.toFixed(3))
+      }
       ctx.save()
-      ctx.translate((canvas.width - (size.x || 0) * s) / 2 - (offset.x || 0) * s, canvas.height - 6)
-      ctx.scale(s, s)
+      // spine 世界坐标 y 向上、canvas y 向下：必须 scale(s, -s) 翻转 y 并把 bounds
+      // 底边对到画布底部——不翻转会整只画到画布上方之外（无异常但画面空白）
+      ctx.translate((canvas.width - size.x * s) / 2 - offset.x * s, canvas.height - 6 + offset.y * s)
+      ctx.scale(s, -s)
       const renderer = new SPINE.SkeletonRenderer(ctx)
       renderer.draw(skeleton)
       ctx.restore()
@@ -231,7 +241,7 @@ async function showVrm (v) {
   const init = await window.companion.init()
   await showVisual(init.characters[0])
   window.companion.onPetRefresh(async ({ char }) => {
-    disposeSpine(); disposeVrm()
+    // 不强制 dispose：sig 相同则 showSpine 直接跳过，避免整窗资源反复重载
     await showVisual(char)
   })
 })().catch((err) => { $('stageFallback').hidden = false; console.error('[pet boot]', err) })

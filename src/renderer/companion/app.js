@@ -316,6 +316,7 @@ async function showSpine (v) {
   // 传 Animation 对象会在这些版本炸掉，所以统一传名字
   if (idle) state.setAnimation(0, idle.name, true)
   let talkTrack = -1
+  let firstFrame = true
   spineRuntime = {
     sig: atlasUrl + skelUrl,
     render: true,
@@ -329,9 +330,15 @@ async function showSpine (v) {
       const size = new SPINE.Vector2()
       skeleton.getBounds(offset, size, [])
       const s = Math.min(canvas.width / (size.x || 1), canvas.height / (size.y || 1)) * 0.92
+      if (firstFrame) {
+        firstFrame = false
+        console.warn('[spine] 首帧: canvas', canvas.width + 'x' + canvas.height, 'bounds', Math.round(offset.x) + ',' + Math.round(offset.y), Math.round(size.x) + 'x' + Math.round(size.y), 'scale', s.toFixed(3))
+      }
       ctx.save()
-      ctx.translate((canvas.width - (size.x || 0) * s) / 2 - (offset.x || 0) * s, canvas.height - 10)
-      ctx.scale(s, s)
+      // spine 世界坐标 y 向上、canvas y 向下：必须 scale(s, -s) 翻转 y 并把 bounds
+      // 底边对到画布底部——不翻转会整只画到画布上方之外（无异常但画面空白）
+      ctx.translate((canvas.width - size.x * s) / 2 - offset.x * s, canvas.height - 6 + offset.y * s)
+      ctx.scale(s, -s)
       const renderer = new SPINE.SkeletonRenderer(ctx)
       renderer.draw(skeleton)
       ctx.restore()

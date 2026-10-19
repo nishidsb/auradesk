@@ -361,6 +361,9 @@ async function showSpine (v) {
       ctx.translate((canvas.width - size.x * s) / 2 - offset.x * s, canvas.height - 6 + offset.y * s)
       ctx.scale(s, -s)
       const renderer = new SPINE.SkeletonRenderer(ctx)
+      // 默认 drawImages 只画 Region 四边形，Mesh 全部跳过（精致皮肤几乎全是
+      // mesh → 整帧 0 像素）。必须开 triangleRendering 才走 mesh 逐三角形渲染
+      renderer.triangleRendering = true
       renderer.draw(skeleton)
       ctx.restore()
     }

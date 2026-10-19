@@ -1,0 +1,73 @@
+{
+  "name": "auradesk",
+  "version": "0.2.1",
+  "description": "AuraDesk - 多屏桌面覆盖层启动器（壁纸 + 游戏库 + 播放器 + 任务栏）",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "demo": "electron . --demo",
+    "capture": "electron . --capture",
+    "test": "node tools/test-steam.js && node tools/test-epic.js && node tools/test-startmenu.js && npm run smoke",
+    "smoke": "node tools/smoke.js && node tools/smoke-settings.js && node tools/smoke-empty.js && node tools/smoke-live.js && node tools/smoke-wall.js",
+    "smtc:test": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/smtc-once.ps1",
+    "preview": "node tools/preview/build.js",
+    "icons": "node tools/make-tray.js",
+    "dist": "electron-builder --win nsis portable",
+    "dist:dir": "electron-builder --win nsis portable --dir"
+  },
+  "author": "ciallooooo",
+  "license": "MIT",
+  "build": {
+    "appId": "com.nishidsb.auradesk",
+    "productName": "AuraDesk",
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*"
+    ],
+    "asarUnpack": [
+      "src/main/resources/*.png",
+      "src/main/resources/*.ps1"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "AuraDesk",
+      "artifactName": "AuraDesk-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "AuraDesk-Portable-${version}.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "^32.2.0",
+    "electron-builder": "^24.13.3",
+    "jsdom": "^30.1.3"
+  },
+  "dependencies": {
+    "music-metadata": "^7.14.0"
+  }
+}

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self';" />
+  <title>AuraDesk 设置</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="titlebar">
+      <div class="brand"><span class="dot"></span> AuraDesk<span class="tag">多屏桌面层</span></div>
+      <div class="win-btns">
+        <button id="minBtn" title="最小化">—</button>
+        <button id="closeBtn" title="关闭">✕</button>
+      </div>
+    </header>
+
+    <div class="body">
+      <aside class="side">
+        <div class="side-label">显示器</div>
+        <div id="displayList" class="side-displays"></div>
+        <div class="side-label">面板</div>
+        <nav class="side-nav" id="sideNav">
+          <button data-view="library">资源库</button>
+          <button data-view="music">音乐</button>
+          <button data-view="global">全局与快捷键</button>
+        </nav>
+        <div class="side-foot">
+          <button id="openData">打开配置目录</button>
+          <button id="quitBtn" class="danger">退出 AuraDesk</button>
+        </div>
+      </aside>
+      <main class="main" id="main"></main>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

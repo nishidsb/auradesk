@@ -1,0 +1,32 @@
+const fs=require('fs'),path=require('path');
+const {JSDOM,VirtualConsole}=require('jsdom');
+const root=path.resolve(__dirname,'..');
+const html=fs.readFileSync(path.join(root,'src/renderer/overlay/index.html'),'utf8').replace(/<meta http-equiv="Content-Security-Policy"[\s\S]*?\/>/,'');
+const errors=[];const vc=new VirtualConsole();
+vc.on('jsdomError',e=>errors.push('jsdomError: '+(e.detail||e.message)));
+vc.on('error',(...a)=>errors.push('console.error: '+a.join(' ')));
+const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,virtualConsole:vc});
+const w=dom.window;
+const empty={key:'demo',screen:{width:1920,height:1080},demo:false,cfg:{followPrimary:false,wallpaper:{type:'preset',preset:'twilight',dim:.2,blur:0,scale:1.06},ui:{scale:1,showDock:true,dockSide:'left',showPlayer:true,showClock:true,showLyrics:true,lowFx:false}},library:[],track:null,playback:{time:0,duration:0,playing:false},isOwner:true,widgets:[]};
+w.aura={init:async()=>empty,setIgnore(){},openSettings(){},hide(){},quit(){},launch:async()=>({ok:true}),reveal:async()=>false,remove:async()=>true,player(){},tick(){},onConfig(){},onCommand(){},onSync(){},onSmtc(){},onLibraryChange(){},appState:async()=>({}),windowShot:async()=>({ok:false}),toggleApp(){},onApps(){},onToggleResult(){},volume(){},mute(){},volumeState:async()=>({v:null,m:false}),audioDevs:async()=>({out:[],in:[],cur:'',curIn:''}),setDev(){},onVolume(){},onDevs(){},showDesktop(){}};
+try{w.eval(fs.readFileSync(path.join(root,'src/renderer/overlay/app.js'),'utf8'));}catch(e){errors.push('app: '+e.stack)}
+setTimeout(()=>{
+ const d=w.document;
+ console.log('--- 空状态冒烟 ---');
+ d.getElementById('dockLib').click();
+ const emptyShown = !d.getElementById('libEmpty').hidden;
+ const gridTiles = d.querySelectorAll('#libGrid .tile').length;
+ const btnShown = !d.getElementById('libEmptyBtn').hidden;
+ const chipsShown = d.getElementById('libChips').children.length;
+ console.log('空库提示   :', emptyShown ? '显示' : '未显示');
+ console.log('网格卡片   :', gridTiles);
+ console.log('引导按钮   :', btnShown ? '显示' : '未显示');
+ console.log('来源筛选   :', chipsShown, '个');
+ d.getElementById('library').click();
+ console.log('播放器标题 :',d.getElementById('pTitle').textContent,'/',d.getElementById('pArtist').textContent);
+ console.log('歌词容器   :',JSON.stringify(d.getElementById('lyrics').innerHTML));
+ console.log('进度       :',d.getElementById('tCur').textContent,d.getElementById('tDur').textContent);
+ console.log('报错       :',errors.length?'\n  '+errors.join('\n  '):'无');
+ if(!emptyShown||gridTiles!==0||!btnShown||chipsShown!==0) process.exit(1);
+ process.exit(errors.length?1:0);
+},900);

@@ -317,6 +317,23 @@ function registerIpc () {
     }
   })
 
+  // 诊断：把渲染层 canvas 整帧存成 png，直接看画没画、画成什么样
+  ipcMain.handle('companion:log-image', (_e, name, dataUrl) => {
+    try {
+      const b64 = String(dataUrl || '').replace(/^data:image\/\w+;base64,/, '')
+      if (!b64) return null
+      const dir = path.join(app.getPath('userData'), 'logs')
+      fs.mkdirSync(dir, { recursive: true })
+      const file = path.join(dir, String(name || 'frame').replace(/[^\w.-]/g, '_'))
+      fs.writeFileSync(file, Buffer.from(b64, 'base64'))
+      log('[companion] 画面已保存:', file)
+      return file
+    } catch (e) {
+      log('[companion] log-image 失败:', e && e.message)
+      return null
+    }
+  })
+
   ipcMain.handle('companion:send', (_e, text) => {
     const t = String(text || '').trim()
     if (!t) return false

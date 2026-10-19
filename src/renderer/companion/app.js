@@ -306,6 +306,17 @@ async function showSpine (v) {
     skeletonData = new SPINE.SkeletonBinary(new SPINE.AtlasAttachmentLoader(atlas)).readSkeletonData(skelData)
   }
   const skeleton = new SPINE.Skeleton(skeletonData)
+  // 附件可能挂在命名皮肤里（导出时勾了皮肤）：default skin 为空时骨骼照常摆位
+  // （bounds/动画都正常）但什么都画不出来。列出皮肤并显式选一个
+  const skins = skeletonData.skins || []
+  console.warn('[spine] 皮肤列表:', skins.map((s) => s.name).join(',') || '(无)')
+  if (skins.length) {
+    const pick = skins.find((s) => /default|base|normal/i.test(s.name)) || skins[skins.length - 1]
+    skeleton.setSkin(skins.length > 1 ? pick : skins[0])
+    skeleton.setSlotsToSetupPose()
+    console.warn('[spine] 使用皮肤:', pick.name)
+  }
+  console.warn('[spine] 槽位附件:', skeleton.slots.filter((sl) => sl.getAttachment()).length + '/' + skeleton.slots.length)
   // 所有 4.x 的 AnimationState 构造参数都是 AnimationStateData（不是 SkeletonData）：
   // 直接传 SkeletonData 会让内部 this.data.skeletonData 为 undefined，
   // 一调 setAnimation 就报 Cannot read properties of undefined (reading 'findAnimation')
@@ -333,6 +344,16 @@ async function showSpine (v) {
       if (firstFrame) {
         firstFrame = false
         console.warn('[spine] 首帧: canvas', canvas.width + 'x' + canvas.height, 'bounds', Math.round(offset.x) + ',' + Math.round(offset.y), Math.round(size.x) + 'x' + Math.round(size.y), 'scale', s.toFixed(3))
+        // 0.6s 后统计不透明像素 + dump 整帧到日志目录，判定 canvas 是否真有内容
+        setTimeout(() => {
+          try {
+            const img = ctx.getImageData(0, 0, canvas.width, canvas.height).data
+            let n = 0
+            for (let i = 3; i < img.length; i += 40) if (img[i] > 0) n++
+            console.warn('[spine] 不透明像素抽样:', n, '/', Math.floor(img.length / 40))
+            if (window.companion.logImage) window.companion.logImage('spine-companion.png', canvas.toDataURL('image/png'))
+          } catch (e) { console.warn('[spine] dump 失败', e.message) }
+        }, 600)
       }
       ctx.save()
       // spine 世界坐标 y 向上、canvas y 向下：必须 scale(s, -s) 翻转 y 并把 bounds

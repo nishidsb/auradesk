@@ -45,12 +45,13 @@ function createWindow () {
     skipTaskbar: false,
     title: 'Aura',
     webPreferences: {
-      preload: path.join(__dirname, '../preload/companion.js'),
+      // 本文件在 src/main/companion/ 下，须回跳两级到 src/ 根
+      preload: path.join(__dirname, '../../preload/companion.js'),
       contextIsolation: true,
       nodeIntegration: false
     }
   })
-  win.loadFile(path.join(__dirname, '../renderer/companion/index.html'))
+  win.loadFile(path.join(__dirname, '../../renderer/companion/index.html'))
   // 诊断全链路：加载失败 / preload 报错 / 渲染进程崩溃 / 控制台错误都要留痕
   const wc = win.webContents
   wc.on('did-finish-load', () => log('[companion] 页面加载完成'))

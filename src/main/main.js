@@ -633,7 +633,7 @@ function refreshTrayMenu () {
   const g = store.get().global
   const visible = [...overlayWins.values()].some((w) => !w.isDestroyed() && w.isVisible())
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'AI 伴侣…', click: () => companion.createWindow() },
+    { label: 'AI…', click: () => companion.createWindow() },
     { label: '打开设置…', accelerator: g.hotkeySettings || undefined, click: () => openSettings() },
     { label: visible ? '隐藏桌面层' : '显示桌面层', accelerator: g.hotkeyToggle || undefined, click: toggleOverlays },
     { type: 'separator' },

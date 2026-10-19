@@ -711,7 +711,7 @@ async function renderCompanion () {
       <input type="${type || 'text'}" id="${id}" value="${esc(val || '')}" placeholder="${esc(ph || '')}" style="width:300px">
     </div>`
   $('#main').innerHTML = `
-    <h1>AI 伴侣</h1>
+    <h1>AI</h1>
     <div class="sub">恋爱级 AI + 贾维斯式助手：聊天、执行桌面任务、语音对话。点 Dock 上的对话图标或托盘菜单打开。</div>
     <div class="card">
       <h2>AI 服务（OpenAI 兼容 API）</h2>
@@ -728,7 +728,7 @@ async function renderCompanion () {
         <div><div class="t">允许 AI 截屏看桌面</div><div class="d">开启后 AI 可以用「看屏幕」工具截取桌面画面来回答（需支持视觉的模型，如 gpt-4o / qwen-vl / glm-4v；纯文本模型会失败）</div></div>
         <label class="sw"><input type="checkbox" id="cpVision" ${cs.visionOn !== false ? 'checked' : ''}><i></i></label>
       </div>
-      <div class="note">配置好后 Dock 的 AI 伴侣就能聊天；它会用工具帮你看时间、切窗口、启动卡片里的程序、调音量，也能截屏看你的桌面。</div>
+      <div class="note">配置好后 Dock 的 AI 就能聊天；它会用工具帮你看时间、切窗口、启动卡片里的程序、调音量，也能截屏看你的桌面。</div>
     </div>
     <div class="card">
       <h2>语音合成（TTS · 朗读 AI 回复）</h2>
@@ -760,7 +760,7 @@ async function renderCompanion () {
       ${inp('cpAsrBase', '识别端点', 'Whisper 兼容 /audio/transcriptions（Groq、faster-whisper-server 等均可）', cs.asrBaseUrl, 'https://api.example.com/v1')}
       ${inp('cpAsrModel', 'ASR 模型', '', cs.asrModel, 'whisper-1')}
       ${inp('cpAsrKey', 'ASR Key（可选）', '留空则复用上面的 API Key', cs.asrApiKey, '', 'password')}
-      <div class="note">角色立绘 / Spine / 3D 模型 / 世界书 / 人设，在 AI 伴侣窗口右上角「角色」里编辑。</div>
+      <div class="note">角色立绘 / Spine / 3D 模型 / 世界书 / 人设，在 AI 窗口右上角「角色」里编辑。</div>
     </div>
   `
   const gather = () => ({

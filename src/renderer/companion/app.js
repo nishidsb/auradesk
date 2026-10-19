@@ -448,5 +448,5 @@ $('btnChar').addEventListener('click', openDrawer)
   renderHistory()
   showVisual()
   addMsg('', '已就绪。语音合成：' + (S.settings.ttsMode === 'off' ? '关' : S.settings.ttsMode === 'api' ? 'API' : '系统语音') +
-    (S.settings.apiBaseUrl ? '' : ' · 还没配置 AI 服务，请到设置 → AI 伴侣 填入 API 地址与模型'), 'syserr')
+    (S.settings.apiBaseUrl ? '' : ' · 还没配置 AI 服务，请到设置 → AI 填入 API 地址与模型'), 'syserr')
 })().catch((e) => addMsg('', '初始化失败：' + e.message, 'syserr'))

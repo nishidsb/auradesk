@@ -29,7 +29,11 @@ function patchCfg (patch) {
 }
 
 function createWindow () {
-  if (win && !win.isDestroyed()) { win.show(); win.focus(); return }
+  if (win && !win.isDestroyed()) {
+    if (!win.isVisible()) win.show()
+    win.focus()
+    return
+  }
   win = new BrowserWindow({
     width: 460, height: 700,
     minWidth: 380, minHeight: 520,
@@ -39,7 +43,7 @@ function createWindow () {
     resizable: true,
     show: false,
     skipTaskbar: false,
-    title: 'Aura 伴侣',
+    title: 'Aura',
     webPreferences: {
       preload: path.join(__dirname, '../preload/companion.js'),
       contextIsolation: true,
@@ -47,7 +51,25 @@ function createWindow () {
     }
   })
   win.loadFile(path.join(__dirname, '../renderer/companion/index.html'))
-  win.once('ready-to-show', () => win.showInactive())
+  // 诊断全链路：加载失败 / preload 报错 / 渲染进程崩溃 / 控制台错误都要留痕
+  const wc = win.webContents
+  wc.on('did-finish-load', () => log('[companion] 页面加载完成'))
+  wc.on('did-fail-load', (_e, code, desc, url) => log('[companion] 页面加载失败', code, desc, url))
+  wc.on('preload-error', (_e, p, err) => log('[companion] preload 报错', p, err && err.message))
+  wc.on('render-process-gone', (_e, d) => log('[companion] 渲染进程退出', JSON.stringify(d)))
+  wc.on('console-message', (_e, level, message, line, sourceId) => {
+    if (level >= 2) log('[companion] 渲染层:', message, '@', sourceId + ':' + line)
+  })
+  win.once('ready-to-show', () => { log('[companion] ready-to-show'); win.show() })
+  // 兜底：ready-to-show 因任何原因不触发（透明窗口首帧异常等）也必须把窗口亮出来
+  const ensureShow = () => {
+    if (win && !win.isDestroyed() && !win.isVisible()) {
+      log('[companion] ready-to-show 未触发，兜底强制显示')
+      win.show()
+    }
+  }
+  wc.once('did-finish-load', () => setTimeout(ensureShow, 800))
+  setTimeout(ensureShow, 3000)
   win.on('closed', () => { win = null })
   log('[companion] 面板已创建')
 }
@@ -222,7 +244,7 @@ function registerIpc () {
     if (!t) return false
     const c = cfg()
     if (!c.apiBaseUrl || !c.apiModel) {
-      send('companion:error', { seq: Date.now(), message: '还没有配置 AI 服务：打开设置 → AI 伴侣，填入 API 地址与模型（本地模型填 http://127.0.0.1:11434/v1 这类端点即可）' })
+      send('companion:error', { seq: Date.now(), message: '还没有配置 AI 服务：打开设置 → AI，填入 API 地址与模型（本地模型填 http://127.0.0.1:11434/v1 这类端点即可）' })
       return false
     }
     handleMessage(character.get(), t)

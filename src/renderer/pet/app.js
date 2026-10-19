@@ -5,6 +5,7 @@ const basename = (p) => String(p || '').replace(/\\/g, '/').split('/').pop()
 
 let vrmRuntime = null
 let spineRuntime = null
+let spineRafStarted = false
 
 async function assetUrl (p) { return p ? window.companion.assetUrl(p) : '' }
 
@@ -150,7 +151,15 @@ async function showSpine (v) {
   // 所有 4.x 的 AnimationState 构造参数都是 AnimationStateData（不是 SkeletonData），
   // 传错会让 setAnimation 一调就报 Cannot read properties of undefined (reading 'findAnimation')
   const state = new SPINE.AnimationState(new SPINE.AnimationStateData(skeletonData))
-  const idle = skeletonData.animations.find((a) => /idle|待机/i.test(a.name)) || skeletonData.animations[0]
+  // idle 选择：优先全身待机（motion_*_idle），眉毛/脸部/特效类 idle 幅度太小
+  // 会被当成「静态」，所以放最后兜底
+  const anims = skeletonData.animations
+  const idle = anims.find((a) => /^motion_[A-Z]_\d+_idle$/i.test(a.name))
+    || anims.find((a) => /motion.*idle/i.test(a.name))
+    || anims.find((a) => /stand|wait|待机/i.test(a.name))
+    || anims.find((a) => /idle|待机/i.test(a.name) && !/facial|face|effect/i.test(a.name))
+    || anims.find((a) => /idle|待机/i.test(a.name))
+    || anims[0]
   console.warn('[pet spine] 加载成功: 动画', skeletonData.animations.map((a) => a.name).join(','), '→ 播放', idle && idle.name)
   // 4.0/4.1/4.2 的 setAnimation 只认动画名字符串，统一传名字
   if (idle) state.setAnimation(0, idle.name, true)
@@ -194,8 +203,17 @@ async function showSpine (v) {
       ctx.restore()
     }
   }
-  if (!spineRuntime.raf) {
-    const loop = () => { if (spineRuntime && spineRuntime.render) spineRuntime.step(); requestAnimationFrame(loop) }
+  // 只启动一个 rAF 循环（多次加载不叠加循环，否则动画被重复 step 加速）；
+  // step 异常不中断循环，只记前几次
+  if (!spineRafStarted) {
+    spineRafStarted = true
+    let errCount = 0
+    const loop = () => {
+      if (spineRuntime && spineRuntime.render) {
+        try { spineRuntime.step() } catch (e) { if (++errCount <= 3) console.warn('[pet spine] step 异常:', e.message) }
+      }
+      requestAnimationFrame(loop)
+    }
     requestAnimationFrame(loop)
   }
 }

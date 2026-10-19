@@ -696,6 +696,9 @@ app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
 // 同类问题第二层：窗口被判遮挡后 renderer 会整体被挂起（上屏停住）。
 // 实测 renderer 在产帧（canvas 位图在变）但屏幕不动，必须再禁掉这个
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
+// 第三层：透明窗口 + GPU 合成在某些显卡驱动上会把窗口合成器挂起
+// （遮挡判定解除后 capturePage 仍冻结）。强制软件合成绕开整个 GPU 合成栈
+app.commandLine.appendSwitch('disable-gpu-compositing')
 
 app.whenReady().then(() => {
   protocol.handle('aura', async (request) => {

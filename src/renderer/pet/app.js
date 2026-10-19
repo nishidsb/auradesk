@@ -306,6 +306,8 @@ async function showVrm (v) {
 
 /* ---------------- 启动 ---------------- */
 ;(async () => {
+  console.warn('[pet] visibilityState:', document.visibilityState)
+  document.addEventListener('visibilitychange', () => console.warn('[pet] visibilityState →', document.visibilityState))
   const init = await window.companion.init()
   await showVisual(init.characters[0])
   window.companion.onPetRefresh(async ({ char }) => {

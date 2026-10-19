@@ -52,6 +52,7 @@ function createWindow () {
   win.setAlwaysOnTop(true, 'floating')
   win.loadFile(path.join(__dirname, '../../renderer/pet/index.html'))
   const wc = win.webContents
+  wc.setBackgroundThrottling(false)
   wc.on('did-fail-load', (_e, code, desc, url) => log('[pet] 加载失败', code, desc, url))
   wc.on('render-process-gone', (_e, d) => log('[pet] 渲染进程退出', JSON.stringify(d)))
   wc.on('console-message', (_e, level, message, line, sourceId) => {
@@ -67,17 +68,25 @@ function createWindow () {
   setInterval(() => { try { if (win && !win.isDestroyed()) wc.invalidate() } catch {} }, 40)
   win.on('closed', () => { win = null })
   // 屏幕级取证：capturePage（窗口渲染结果）+ desktopCapturer（真实屏幕）各拍两帧，
-  // 判定「位图动/屏幕不动」卡在哪一层
+  // 并把全屏截图裁剪到 pet 区域——直接判定屏幕上那一块到底变没变
   setTimeout(async () => {
+    const logs = path.join(app.getPath('userData'), 'logs')
     const shot = async (tag, i) => {
       try {
         if (!win || win.isDestroyed()) return
+        const b = win.getBounds()
+        log('[pet] 取证状态:', JSON.stringify({ bounds: b, onTop: win.isAlwaysOnTop(), visible: win.isVisible(), minimized: win.isMinimized() }))
         const img = await win.webContents.capturePage()
-        fs.writeFileSync(path.join(app.getPath('userData'), 'logs', 'win-pet-' + i + '.png'), img.toPNG())
+        fs.writeFileSync(path.join(logs, 'win-pet-' + i + '.png'), img.toPNG())
         const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 2560, height: 1440 } })
         const s = sources[0]
-        if (s) fs.writeFileSync(path.join(app.getPath('userData'), 'logs', 'screen-' + i + '.png'), s.thumbnail.toPNG())
-        log('[pet] 取证 ' + tag + ' 完成 (win/screen-' + i + '.png)')
+        if (s) {
+          fs.writeFileSync(path.join(logs, 'screen-' + i + '.png'), s.thumbnail.toPNG())
+          // 裁剪出 pet 区域（thumbnail 与屏幕同尺寸）
+          const crop = s.thumbnail.crop({ x: b.x, y: b.y, width: b.width, height: b.height })
+          fs.writeFileSync(path.join(logs, 'screen-pet-crop-' + i + '.png'), crop.toPNG())
+        }
+        log('[pet] 取证 ' + tag + ' 完成 (win/screen/screen-pet-crop-' + i + '.png)')
       } catch (e) { log('[pet] 取证失败:', e && e.message) }
     }
     await shot('t1', 1)

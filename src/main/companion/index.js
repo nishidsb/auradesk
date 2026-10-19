@@ -8,6 +8,7 @@
  */
 const { BrowserWindow, app, ipcMain, dialog } = require('electron')
 const path = require('node:path')
+const fs = require('node:fs')
 const store = require('../store')
 const { log } = require('../logger')
 const character = require('./character')
@@ -188,24 +189,30 @@ async function transcribe (base64, mime) {
 
 /* ---------------- IPC ---------------- */
 
+/** AI 配置的对外视图（init / settings IPC 共用） */
+function settingsView () {
+  const c = cfg()
+  return {
+    apiBaseUrl: c.apiBaseUrl || '', apiModel: c.apiModel || '', apiKey: c.apiKey || '',
+    visionOn: c.visionOn !== false,
+    petOn: c.petOn !== false,
+    replyLang: c.replyLang || 'zh',
+    ttsMode: c.ttsMode || 'browser', ttsProvider: c.ttsProvider || 'openai',
+    ttsBaseUrl: c.ttsBaseUrl || '', ttsModel: c.ttsModel || '', ttsApiKey: c.ttsApiKey || '',
+    ttsRefAudio: c.ttsRefAudio || '', ttsTextLang: c.ttsTextLang || 'zh', ttsPromptText: c.ttsPromptText || '', ttsPromptLang: c.ttsPromptLang || 'zh',
+    asrBaseUrl: c.asrBaseUrl || '', asrModel: c.asrModel || 'whisper-1', asrLang: c.asrLang || 'auto', asrApiKey: c.asrApiKey || ''
+  }
+}
+
 function registerIpc () {
   ipcMain.handle('companion:init', () => {
-    const c = cfg()
     return {
       characters: character.list(),
       history: character.history(character.get().id),
-      settings: {
-        apiBaseUrl: c.apiBaseUrl || '', apiModel: c.apiModel || '', apiKey: c.apiKey || '',
-        visionOn: c.visionOn !== false,
-        petOn: c.petOn !== false,
-        replyLang: c.replyLang || 'zh',
-        ttsMode: c.ttsMode || 'browser', ttsProvider: c.ttsProvider || 'openai',
-        ttsBaseUrl: c.ttsBaseUrl || '', ttsModel: c.ttsModel || '', ttsApiKey: c.ttsApiKey || '',
-        ttsRefAudio: c.ttsRefAudio || '', ttsTextLang: c.ttsTextLang || 'zh', ttsPromptText: c.ttsPromptText || '', ttsPromptLang: c.ttsPromptLang || 'zh',
-        asrBaseUrl: c.asrBaseUrl || '', asrModel: c.asrModel || 'whisper-1', asrApiKey: c.asrApiKey || ''
-      }
+      settings: settingsView()
     }
   })
+  ipcMain.handle('companion:settings', () => settingsView())
 
   ipcMain.handle('companion:models', async (_e, baseUrl, apiKey) => llm.listModels({ baseUrl, apiKey }))
   ipcMain.handle('companion:patch-settings', (_e, patch) => {
@@ -258,9 +265,27 @@ function registerIpc () {
       : kind === 'spine'
         ? [{ name: 'Spine', extensions: ['skel', 'json', 'atlas', 'png'] }]
         : [{ name: '图片', extensions: ['png', 'webp', 'jpg', 'gif'] }]
-    const r = await dialog.showOpenDialog(win, { filters, properties: ['openFile'] })
-    if (r.canceled || !r.filePaths.length) return ''
-    return character.importAsset(charId, r.filePaths[0])
+    // Spine 支持一次多选（atlas + skel/json + png），单选时自动在同目录补齐同名三件套
+    const props = kind === 'spine' ? ['openFile', 'multiSelections'] : ['openFile']
+    const r = await dialog.showOpenDialog(win, { filters, properties: props })
+    if (r.canceled || !r.filePaths.length) return kind === 'spine' ? [] : ''
+    if (kind !== 'spine') return character.importAsset(charId, r.filePaths[0])
+    // 归一化：正斜杠 + 统一小写扩展名判断
+    let picked = r.filePaths.map((p) => path.normalize(p))
+    if (picked.length === 1) {
+      // 自动补齐：同目录找「同名」的 atlas / skel / json / png（忽略 _cover/_gesture 等不同主名）
+      const one = picked[0]
+      const dir = path.dirname(one)
+      const stem = path.basename(one).replace(/\.(atlas|skel|json|png)$/i, '')
+      const has = (ext) => picked.some((p) => new RegExp('\\.' + ext + '$', 'i').test(p) && path.basename(p, path.extname(p)) === stem)
+      const tryAdd = (ext) => {
+        const cand = path.join(dir, stem + ext)
+        if (!has(ext.slice(1)) && fs.existsSync(cand)) picked.push(cand)
+      }
+      if (/\.(skel|json)$/i.test(one)) tryAdd('.atlas')
+      if (/\.atlas$/i.test(one)) { tryAdd('.skel'); tryAdd('.json'); tryAdd('.png') }
+    }
+    return picked.map((p) => character.importAsset(charId, p))
   })
 
   // 桌面角色窗口 IPC（当前角色 getter / 配置回写）

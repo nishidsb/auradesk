@@ -215,9 +215,9 @@ async function showSpine (v) {
   canvas.width = canvas.clientWidth * scale
   canvas.height = canvas.clientHeight * scale
   const ctx = canvas.getContext('2d')
-  // aura:// 协议（supportFetchAPI）：AssetManager 用 fetch 拉资源，
-  // 相对目录 + 文件名的拼法对 aura:// 同样成立
-  const assetManager = new SPINE.AssetManager(ctx, atlasUrl.replace(/[^/]*$/, ''))
+  // spine-canvas 4.3 构造签名是 (pathPrefix, downloader)——没有 ctx 参数，
+  // 之前把 ctx 传进去了，prefix 串被当成 downloader 导致 downloadText 报错
+  const assetManager = new SPINE.AssetManager(atlasUrl.replace(/[^/]*$/, ''))
   assetManager.loadTextureAtlas(basename(decodeURIComponent(atlasUrl)))
   const skelName = basename(decodeURIComponent(skelUrl))
   if (/\.json$/i.test(skelName)) assetManager.loadText(skelName)
@@ -319,6 +319,8 @@ function disposeVrm () {
 /* ---------------- 角色抽屉 ---------------- */
 let editing = null
 function openDrawer () {
+  showDrawerTab('persona')
+  refreshDrawer()
   $('charDrawer').hidden = false
   refreshDrawer()
 }
@@ -332,6 +334,82 @@ function refreshDrawer () {
   renderVisMode()
   renderMemory()
 }
+
+/* 抽屉 tab 切换：人设 / 形象 / 设置（全部 AI 设置整合在此，不再分散到主设置页） */
+function showDrawerTab (t) {
+  for (const b of $('drawerTabs').children) b.classList.toggle('on', b.dataset.t === t)
+  $('tabPersona').hidden = t !== 'persona'
+  $('tabVisual').hidden = t !== 'visual'
+  $('tabSettings').hidden = t !== 'settings'
+  if (t === 'settings') renderCpSettings()
+}
+for (const b of $('drawerTabs').children) {
+  b.addEventListener('click', () => showDrawerTab(b.dataset.t))
+}
+
+/* ---------------- 抽屉「设置」tab（自设置页整体迁入） ---------------- */
+async function renderCpSettings () {
+  let cs = {}
+  try { cs = await window.companion.settings() } catch {}
+  $('cpApiBase').value = cs.apiBaseUrl || ''
+  $('cpApiKey').value = cs.apiKey || ''
+  $('cpApiModel').value = cs.apiModel || ''
+  $('cpVision').checked = cs.visionOn !== false
+  $('cpPetOn').checked = cs.petOn !== false
+  $('cpReplyLang').value = cs.replyLang || 'zh'
+  $('cpTtsMode').value = cs.ttsMode || 'browser'
+  $('cpTtsProvider').value = cs.ttsProvider || 'openai'
+  $('cpTtsBase').value = cs.ttsBaseUrl || ''
+  $('cpTtsModel').value = cs.ttsModel || ''
+  $('cpTtsKey').value = cs.ttsApiKey || ''
+  $('cpTtsRefAudio').value = cs.ttsRefAudio || ''
+  $('cpTtsPromptText').value = cs.ttsPromptText || ''
+  $('cpAsrBase').value = cs.asrBaseUrl || ''
+  $('cpAsrModel').value = cs.asrModel || 'whisper-1'
+  $('cpAsrKey').value = cs.asrApiKey || ''
+  $('cpAsrLang').value = cs.asrLang || 'auto'
+}
+const cpGather = () => ({
+  apiBaseUrl: $('cpApiBase').value.trim(),
+  apiKey: $('cpApiKey').value.trim(),
+  apiModel: $('cpApiModel').value.trim(),
+  visionOn: $('cpVision').checked,
+  petOn: $('cpPetOn').checked,
+  replyLang: $('cpReplyLang').value,
+  ttsMode: $('cpTtsMode').value,
+  ttsProvider: $('cpTtsProvider').value,
+  ttsBaseUrl: $('cpTtsBase').value.trim(),
+  ttsModel: $('cpTtsModel').value.trim(),
+  ttsApiKey: $('cpTtsKey').value.trim(),
+  ttsRefAudio: $('cpTtsRefAudio').value.trim(),
+  ttsPromptText: $('cpTtsPromptText').value.trim(),
+  asrBaseUrl: $('cpAsrBase').value.trim(),
+  asrModel: $('cpAsrModel').value.trim(),
+  asrLang: $('cpAsrLang').value,
+  asrApiKey: $('cpAsrKey').value.trim()
+})
+async function cpSave () {
+  await window.companion.patchSettings(cpGather())
+  $('cpSaveTip').textContent = '✓ 已保存 ' + new Date().toLocaleTimeString('zh-CN', { hour12: false })
+  setTimeout(() => { $('cpSaveTip').textContent = '' }, 3000)
+}
+$('cpSave').addEventListener('click', cpSave)
+$('cpFetchModels').addEventListener('click', async () => {
+  await cpSave()
+  const btn = $('cpFetchModels')
+  btn.textContent = '获取中…'
+  let models = []
+  try { models = await window.companion.models($('cpApiBase').value.trim(), $('cpApiKey').value.trim()) } catch {}
+  const sel = $('cpApiModel')
+  if (Array.isArray(models) && models.length) {
+    const cur = sel.value
+    sel.innerHTML = models.map((m) => `<option value="${esc(m)}" ${m === cur ? 'selected' : ''}>${esc(m)}</option>`).join('')
+    btn.textContent = '已载入 ' + models.length + ' 个'
+  } else {
+    btn.textContent = '拉取失败'
+  }
+  setTimeout(() => { btn.textContent = '获取模型列表' }, 2500)
+})
 function renderWorld () {
   const list = $('worldList')
   list.innerHTML = ''
@@ -441,13 +519,15 @@ $('btnImport').addEventListener('click', async () => {
     const p = await window.companion.importAsset(char.id, 'image')
     if (p) editing.visual.image = p
   } else if (mode === 'spine') {
-    // Spine 需要逐个导入 atlas/skel/png
-    for (const kind of ['atlas', 'skel', 'png']) {
-      const p = await window.companion.importAsset(char.id, 'spine')
-      if (!p) break
-      if (/\.atlas$/i.test(p)) editing.visual.spine.atlas = p
-      else if (/\.skel$/i.test(p) || (/\.json$/i.test(p) && !/atlas/i.test(p))) editing.visual.spine.skel = p
-      else editing.visual.spine.png = p
+    // 一次导入：可多选 atlas/skel/json/png；只选一个时主进程自动补齐同目录同名文件
+    const files = await window.companion.importAsset(char.id, 'spine')
+    const spine = editing.visual.spine = editing.visual.spine || {}
+    const hasSkel = files.some((p) => /\.skel$/i.test(p))
+    for (const p of files) {
+      if (/\.atlas$/i.test(p)) spine.atlas = p
+      else if (/\.skel$/i.test(p)) spine.skel = p
+      else if (/\.json$/i.test(p) && !hasSkel && !spine.skel) spine.skel = p
+      else if (/\.png$/i.test(p) && !/cover/i.test(p)) spine.png = p
     }
   } else {
     const p = await window.companion.importAsset(char.id, 'vrm')
@@ -466,6 +546,16 @@ $('btnClear').addEventListener('click', async () => {
   renderHistory()
 })
 $('btnChar').addEventListener('click', openDrawer)
+// 形象 tab 里也有一个保存按钮
+$('btnCharSave2').addEventListener('click', async () => {
+  editing.name = $('fName').value.trim() || editing.name
+  editing.persona = $('fPersona').value
+  await window.companion.saveCharacter(editing)
+  char = editing
+  $('charName').textContent = char.name
+  $('charDrawer').hidden = true
+  showVisual()
+})
 
 /* ---------------- 启动 ---------------- */
 ;(async () => {

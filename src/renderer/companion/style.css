@@ -204,3 +204,18 @@ html, body {
 }
 .mem-del:hover { background: rgba(200,60,60,.7); color: #fff; }
 .mem-empty { font-size: 11px; color: rgba(255,255,255,.35); padding: 4px 2px; }
+
+/* ---- 抽屉 tab（人设 / 形象 / 设置） ---- */
+#drawerTabs { margin: 10px 12px 4px; }
+#tabPersona, #tabVisual, #tabSettings { padding: 0 12px 14px; overflow-y: auto; }
+#tabSettings label, #tabPersona label, #tabVisual label { display: block; font-size: 12px; color: rgba(255,255,255,.6); margin: 10px 0 0; }
+#tabSettings input, #tabSettings select {
+  display: block; width: 100%; margin-top: 4px; box-sizing: border-box;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 8px; color: #eef0f7; padding: 7px 9px; font-size: 12px; outline: none;
+}
+#tabSettings input:focus, #tabSettings select:focus { border-color: rgba(143,123,255,.7); }
+#tabSettings input::placeholder { color: rgba(255,255,255,.28); }
+.cd-check { display: flex !important; align-items: center; gap: 7px; color: #dfe3ee !important; font-size: 12px; cursor: pointer; }
+.cd-check input { width: auto !important; margin: 0 !important; accent-color: #8f7bff; }
+#cpSaveTip { color: #7bd88f; font-size: 11px; padding: 4px 2px; }

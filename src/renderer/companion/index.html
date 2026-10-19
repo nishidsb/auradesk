@@ -45,27 +45,89 @@
         <button id="btnCharDel" class="cd-btn">删</button>
         <button id="btnCharClose" class="cd-btn">✕</button>
       </div>
-      <label>名字 <input id="fName"></label>
-      <label>人设（性格 / 说话风格 / 与你的关系，随便写）
-        <textarea id="fPersona" rows="6"></textarea>
-      </label>
-      <label>世界书条目（关键词命中才注入）
-        <div id="worldList"></div>
-        <button id="btnWorldAdd" class="cd-btn">＋ 加一条世界观</button>
-      </label>
-      <label>长期记忆（AI 自动记下的关于你的事，点 ✕ 可删）
-        <div id="memList" class="mem-list"></div>
-      </label>
-      <label>形象
-        <div class="seg" id="visMode">
-          <button data-m="still" class="on">立绘</button>
-          <button data-m="spine">Spine</button>
-          <button data-m="vrm">3D</button>
-        </div>
-        <button id="btnImport" class="cd-btn wide">导入形象文件…</button>
-        <div class="hint" id="visHint"></div>
-      </label>
-      <button id="btnCharSave" class="cd-save">保存角色</button>
+      <div class="seg" id="drawerTabs">
+        <button data-t="persona" class="on">人设</button>
+        <button data-t="visual">形象</button>
+        <button data-t="settings">设置</button>
+      </div>
+      <div id="tabPersona">
+        <label>名字 <input id="fName"></label>
+        <label>人设（性格 / 说话风格 / 与你的关系，随便写）
+          <textarea id="fPersona" rows="6"></textarea>
+        </label>
+        <label>世界书条目（关键词命中才注入）
+          <div id="worldList"></div>
+          <button id="btnWorldAdd" class="cd-btn">＋ 加一条世界观</button>
+        </label>
+        <label>长期记忆（AI 自动记下的关于你的事，点 ✕ 可删）
+          <div id="memList" class="mem-list"></div>
+        </label>
+        <button id="btnCharSave" class="cd-save">保存角色</button>
+      </div>
+      <div id="tabVisual" hidden>
+        <label>形象
+          <div class="seg" id="visMode">
+            <button data-m="still" class="on">立绘</button>
+            <button data-m="spine">Spine</button>
+            <button data-m="vrm">3D</button>
+          </div>
+          <button id="btnImport" class="cd-btn wide">导入形象文件…</button>
+          <div class="hint" id="visHint"></div>
+        </label>
+        <button id="btnCharSave2" class="cd-save">保存角色</button>
+      </div>
+      <div id="tabSettings" hidden>
+        <label>API 地址（OpenAI 兼容；本地 Ollama 填 http://127.0.0.1:11434/v1）
+          <input id="cpApiBase" placeholder="https://api.example.com/v1">
+        </label>
+        <label>API Key（本地模型一般留空）
+          <input id="cpApiKey" type="password" placeholder="sk-…">
+        </label>
+        <label>模型
+          <div style="display:flex;gap:6px">
+            <input id="cpApiModel" placeholder="gpt-4o-mini / qwen2.5:7b" style="flex:1">
+            <button id="cpFetchModels" class="cd-btn">获取模型列表</button>
+          </div>
+        </label>
+        <label class="cd-check"><input type="checkbox" id="cpVision"> 允许 AI 截屏看桌面（需支持视觉的模型）</label>
+        <label class="cd-check"><input type="checkbox" id="cpPetOn"> 在桌面显示角色（右下角，可拖动）</label>
+        <label>AI 回复语言（外语提问按此语言回复＝翻译）
+          <select id="cpReplyLang">
+            <option value="zh">中文</option>
+            <option value="en">English</option>
+            <option value="ja">日本語</option>
+          </select>
+        </label>
+        <label>语音合成（朗读回复）
+          <select id="cpTtsMode">
+            <option value="browser">系统语音</option>
+            <option value="api">API / 本地引擎</option>
+            <option value="off">关闭</option>
+          </select>
+          <select id="cpTtsProvider">
+            <option value="openai">OpenAI 兼容（Fish Audio 云 / fish-speech / IndexTTS）</option>
+            <option value="gptsovits">GPT-SoVITS 本地（端口 9880）</option>
+          </select>
+          <input id="cpTtsBase" placeholder="TTS 地址（留空复用 API 地址）">
+          <input id="cpTtsModel" placeholder="TTS 模型（Fish Audio 填 s1）">
+          <input id="cpTtsKey" type="password" placeholder="TTS Key（留空复用 API Key）">
+          <input id="cpTtsRefAudio" placeholder="GPT-SoVITS：参考音频 wav 路径">
+          <input id="cpTtsPromptText" placeholder="GPT-SoVITS：参考音频里说的话">
+        </label>
+        <label>语音识别（按住 🎙 说话；Whisper 兼容端点）
+          <input id="cpAsrBase" placeholder="识别端点，如 https://api.groq.com/openai/v1">
+          <input id="cpAsrModel" placeholder="whisper-large-v3 / whisper-1">
+          <input id="cpAsrKey" type="password" placeholder="ASR Key（留空复用 API Key）">
+          <select id="cpAsrLang">
+            <option value="auto">识别语言：自动（中/英/日）</option>
+            <option value="zh">识别语言：中文</option>
+            <option value="en">识别语言：英文</option>
+            <option value="ja">识别语言：日文</option>
+          </select>
+        </label>
+        <button id="cpSave" class="cd-save">保存设置</button>
+        <div class="hint" id="cpSaveTip"></div>
+      </div>
     </aside>
   </div>
   <script src="libs.js"></script>

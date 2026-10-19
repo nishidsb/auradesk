@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('companion', {
   stop: () => ipcRenderer.invoke('companion:stop'),
   clearHistory: (id) => ipcRenderer.invoke('companion:clear-history', id),
   models: (baseUrl, apiKey) => ipcRenderer.invoke('companion:models', baseUrl, apiKey),
+  settings: () => ipcRenderer.invoke('companion:settings'),
   patchSettings: (patch) => ipcRenderer.invoke('companion:patch-settings', patch),
   setActive: (id) => ipcRenderer.invoke('companion:set-active', id),
   saveCharacter: (c) => ipcRenderer.invoke('companion:save-character', c),

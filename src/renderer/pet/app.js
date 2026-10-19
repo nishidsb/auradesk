@@ -51,7 +51,8 @@ async function showSpine (v) {
   canvas.width = canvas.clientWidth * scale
   canvas.height = canvas.clientHeight * scale
   const ctx = canvas.getContext('2d')
-  const assetManager = new SPINE.AssetManager(ctx, atlasUrl.replace(/[^/]*$/, ''))
+  // spine-canvas 4.3 构造签名是 (pathPrefix, downloader)——没有 ctx 参数
+  const assetManager = new SPINE.AssetManager(atlasUrl.replace(/[^/]*$/, ''))
   assetManager.loadTextureAtlas(basename(decodeURIComponent(atlasUrl)))
   const skelName = basename(decodeURIComponent(skelUrl))
   if (/\.json$/i.test(skelName)) assetManager.loadText(skelName)

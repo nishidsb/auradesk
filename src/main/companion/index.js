@@ -50,7 +50,9 @@ function createWindow () {
       // 本文件在 src/main/companion/ 下，须回跳两级到 src/ 根
       preload: path.join(__dirname, '../../preload/companion.js'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      // 透明窗口被判定遮挡时会节流 rAF，动画卡在第一帧
+      backgroundThrottling: false
     }
   })
   win.loadFile(path.join(__dirname, '../../renderer/companion/index.html'))

@@ -1,6 +1,6 @@
 {
   "name": "auradesk",
-  "version": "0.3.14",
+  "version": "0.3.15",
   "description": "AuraDesk - 多屏桌面覆盖层启动器（壁纸 + 游戏库 + 播放器 + 任务栏 + AI 伴侣）",
   "main": "src/main/main.js",
   "scripts": {

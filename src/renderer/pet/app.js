@@ -56,6 +56,30 @@ async function detectSpineVersion (skelUrl) {
   } catch { return null }
 }
 
+/* 消除逐三角形 clip 的抗锯齿缝隙：把三角形沿质心外扩 ~1.2 屏幕像素（u/v 不变），
+   相邻三角形互相重叠 1px，视觉无缝。同 companion 窗口 */
+function patchSpineSeam (SPINE) {
+  if (!SPINE || !SPINE.SkeletonRenderer || SPINE.SkeletonRenderer.prototype.__seamPatched) return
+  SPINE.SkeletonRenderer.prototype.__seamPatched = true
+  const orig = SPINE.SkeletonRenderer.prototype.drawTriangle
+  SPINE.SkeletonRenderer.prototype.drawTriangle = function (img, x0, y0, u0, v0, x1, y1, u1, v1, x2, y2, u2, v2) {
+    const s = this.__scale || 1
+    const grow = 1.2 / (s || 1)
+    const cx = (x0 + x1 + x2) / 3
+    const cy = (y0 + y1 + y2) / 3
+    const push = (px, py) => {
+      const dx = px - cx
+      const dy = py - cy
+      const len = Math.hypot(dx, dy) || 1
+      return [px + dx / len * grow, py + dy / len * grow]
+    }
+    ;[x0, y0] = push(x0, y0)
+    ;[x1, y1] = push(x1, y1)
+    ;[x2, y2] = push(x2, y2)
+    orig.call(this, img, x0, y0, u0, v0, x1, y1, u1, v1, x2, y2, u2, v2)
+  }
+}
+
 async function showSpine (v) {
   const libs = window.AuraLibs
   if (!v.spine || !v.spine.atlas || !v.spine.skel) { $('stageFallback').hidden = false; return }
@@ -67,6 +91,7 @@ async function showSpine (v) {
   // 从骨架文件头部扫版本号，选对应运行时；识别不出就用最新 4.3 兜底
   const ver = await detectSpineVersion(skelUrl)
   const SPINE = (libs.AuraSpine && ver && libs.AuraSpine[ver]) || libs.SPINE
+  patchSpineSeam(SPINE)
   console.warn('[pet spine] 骨架版本', ver || '未知', '→ 运行时', SPINE === libs.SPINE ? '4.3（兜底）' : ver)
   const canvas = $('spineCanvas')
   const scale = window.devicePixelRatio || 1
@@ -179,16 +204,19 @@ async function showSpine (v) {
       if (firstFrame) {
         firstFrame = false
         console.warn('[pet spine] 首帧: canvas', canvas.width + 'x' + canvas.height, 'bounds', Math.round(offset.x) + ',' + Math.round(offset.y), Math.round(size.x) + 'x' + Math.round(size.y), 'scale', s.toFixed(3))
-        // 0.6s 后统计不透明像素 + dump 整帧到日志目录，判定 canvas 是否真有内容
+        // 双帧 dump：0.6s 与 2.6s 各存一张，字节不同 = 动画在推进（rAF 正常）
         setTimeout(() => {
           try {
             const img = ctx.getImageData(0, 0, canvas.width, canvas.height).data
             let n = 0
             for (let i = 3; i < img.length; i += 40) if (img[i] > 0) n++
             console.warn('[pet spine] 不透明像素抽样:', n, '/', Math.floor(img.length / 40))
-            if (window.companion.logImage) window.companion.logImage('spine-pet.png', canvas.toDataURL('image/png'))
+            if (window.companion.logImage) window.companion.logImage('spine-pet-1.png', canvas.toDataURL('image/png'))
           } catch (e) { console.warn('[pet spine] dump 失败', e.message) }
         }, 600)
+        setTimeout(() => {
+          try { if (window.companion.logImage) window.companion.logImage('spine-pet-2.png', canvas.toDataURL('image/png')) } catch {}
+        }, 2600)
       }
       ctx.save()
       // spine 世界坐标 y 向上、canvas y 向下：必须 scale(s, -s) 翻转 y 并把 bounds
@@ -199,6 +227,7 @@ async function showSpine (v) {
       // 默认 drawImages 只画 Region 四边形，Mesh 全部跳过（精致皮肤几乎全是
       // mesh → 整帧 0 像素）。必须开 triangleRendering 才走 mesh 逐三角形渲染
       renderer.triangleRendering = true
+      renderer.__scale = s
       renderer.draw(skeleton)
       ctx.restore()
     }

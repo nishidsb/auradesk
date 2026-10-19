@@ -38,7 +38,10 @@ function createWindow () {
       // 本文件在 src/main/companion/ 下，须回跳两级到 src/ 根
       preload: path.join(__dirname, '../../preload/companion.js'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      // 关键：frameless 透明置底窗口会被 Chromium 判定「被遮挡」而节流 rAF，
+      // 角色动画就永远停在第一帧——必须关掉后台节流
+      backgroundThrottling: false
     }
   })
   win.setAlwaysOnTop(false)

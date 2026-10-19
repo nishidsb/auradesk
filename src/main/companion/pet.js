@@ -57,6 +57,9 @@ function createWindow () {
   const ensureShow = () => { if (win && !win.isDestroyed() && !win.isVisible()) win.showInactive() }
   wc.once('did-finish-load', () => setTimeout(ensureShow, 800))
   setTimeout(ensureShow, 3000)
+  // 兜底：置底透明窗口被判定遮挡时合成上屏会被挂起（renderer 在产帧但屏幕不动），
+  // 定期强制全量重绘保证画面持续刷新
+  setInterval(() => { try { if (win && !win.isDestroyed()) wc.invalidate() } catch {} }, 40)
   win.on('closed', () => { win = null })
   log('[pet] 桌面角色窗口已创建')
 }

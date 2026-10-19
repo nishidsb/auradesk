@@ -693,6 +693,9 @@ function registerShortcuts () {
 // Windows 原生遮挡计算会把置底/透明/穿透窗口判定为「被遮挡」而暂停其合成帧，
 // 桌宠等常驻透明窗口的 rAF/渲染会被冻结在第一帧。禁用该特性才能让画面持续刷新
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
+// 同类问题第二层：窗口被判遮挡后 renderer 会整体被挂起（上屏停住）。
+// 实测 renderer 在产帧（canvas 位图在变）但屏幕不动，必须再禁掉这个
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
 
 app.whenReady().then(() => {
   protocol.handle('aura', async (request) => {

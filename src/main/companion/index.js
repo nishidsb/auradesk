@@ -75,6 +75,8 @@ function createWindow () {
   }
   wc.once('did-finish-load', () => setTimeout(ensureShow, 800))
   setTimeout(ensureShow, 3000)
+  // 兜底：透明窗口被判定遮挡时合成上屏会被挂起，定期强制全量重绘
+  setInterval(() => { try { if (win && !win.isDestroyed()) wc.invalidate() } catch {} }, 40)
   win.on('closed', () => { win = null })
   log('[companion] 面板已创建')
 }

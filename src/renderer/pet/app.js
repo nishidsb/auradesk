@@ -57,9 +57,19 @@ async function showSpine (v) {
   const skelName = basename(decodeURIComponent(skelUrl))
   if (/\.json$/i.test(skelName)) assetManager.loadText(skelName)
   else assetManager.loadBinary(skelName)
+  // spine-canvas 4.3 没有 onLoadAll 回调，用 isLoadingComplete() 轮询；
+  // errors 里会记录真实加载失败原因（fetch 失败/404 等）
   await new Promise((resolve, reject) => {
-    assetManager.onLoadAll = () => resolve()
-    setTimeout(() => reject(new Error('Spine 资源加载超时')), 15000)
+    const t0 = Date.now()
+    const poll = () => {
+      if (assetManager.isLoadingComplete()) {
+        const errs = Object.values(assetManager.errors || {})
+        if (errs.length) reject(new Error('Spine 资源加载失败: ' + String(errs[0]).slice(0, 200)))
+        else resolve()
+      } else if (Date.now() - t0 > 15000) reject(new Error('Spine 资源加载超时'))
+      else setTimeout(poll, 80)
+    }
+    poll()
   })
   const atlas = assetManager.requireAtlas(basename(decodeURIComponent(atlasUrl)))
   let skeletonData
@@ -73,6 +83,7 @@ async function showSpine (v) {
   const skeleton = new SPINE.Skeleton(skeletonData)
   const state = new SPINE.AnimationState(skeletonData)
   const idle = skeletonData.animations.find((a) => /idle|待机/i.test(a.name)) || skeletonData.animations[0]
+  console.warn('[pet spine] 加载成功: 动画', skeletonData.animations.map((a) => a.name).join(','), '→ 播放', idle && idle.name)
   if (idle) state.setAnimation(0, idle, true)
   spineRuntime = {
     sig: atlasUrl + skelUrl,

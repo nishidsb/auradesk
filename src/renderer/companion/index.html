@@ -59,7 +59,10 @@
           <div id="worldList"></div>
           <button id="btnWorldAdd" class="cd-btn">＋ 加一条世界观</button>
         </label>
-        <label>长期记忆（AI 自动记下的关于你的事，点 ✕ 可删）
+        <label>对话时间线（全部聊天自动入账，最近 200 条永久保存，AI 回想时可直接翻）
+          <div id="timelineList" class="mem-list"></div>
+        </label>
+        <label>AI 提取的记忆（关键事件，点 ✕ 可删）
           <div id="memList" class="mem-list"></div>
         </label>
         <button id="btnCharSave" class="cd-save">保存角色</button>
@@ -105,15 +108,56 @@
             <option value="off">关闭</option>
           </select>
           <select id="cpTtsProvider">
-            <option value="openai">OpenAI 兼容（Fish Audio 云 / fish-speech / IndexTTS）</option>
+            <option value="fish">Fish Audio（官方 API）</option>
+            <option value="openai">OpenAI 兼容（fish-speech / IndexTTS 等）</option>
             <option value="gptsovits">GPT-SoVITS 本地（端口 9880）</option>
           </select>
           <input id="cpTtsBase" placeholder="TTS 地址（留空复用 API 地址）">
-          <input id="cpTtsModel" placeholder="TTS 模型（Fish Audio 填 s1）">
+          <input id="cpTtsModel" placeholder="TTS 模型（OpenAI 兼容端点用）">
           <input id="cpTtsKey" type="password" placeholder="TTS Key（留空复用 API Key）">
           <input id="cpTtsRefAudio" placeholder="GPT-SoVITS：参考音频 wav 路径">
           <input id="cpTtsPromptText" placeholder="GPT-SoVITS：参考音频里说的话">
         </label>
+        <div id="cpFish" hidden>
+          <label>Fish Audio API 端点
+            <input id="cpFishBase" placeholder="https://api.fish.audio/v1/tts">
+          </label>
+          <label>TTS 模型
+            <input id="cpFishModel" placeholder="s2.1-pro-free">
+          </label>
+          <label>Voice model ID / reference_id（Fish 声音库或自建声音模型的 ID）
+            <input id="cpFishVoice" placeholder="57c45a3aa7b34a62af8eb27137f092c8">
+          </label>
+          <label>ASMR 模式 Voice model ID（留空沿用普通音色）
+            <input id="cpFishAsmr" placeholder="2c83af8fceab43748439353dd501be21">
+          </label>
+          <label>输出格式
+            <select id="cpFishFormat">
+              <option value="wav">WAV</option>
+              <option value="mp3">MP3</option>
+            </select>
+          </label>
+          <label>延迟策略
+            <select id="cpFishLatency">
+              <option value="normal">质量优先</option>
+              <option value="balanced">平衡</option>
+            </select>
+          </label>
+          <label>感情程度（<span id="cpFishFeelingV">0</span>%，Drama 3 情绪增强）
+            <input id="cpFishFeeling" type="range" min="0" max="100" value="0">
+          </label>
+          <label>句内情绪演出密度（<span id="cpFishDensityV">0</span>%，感叹强调/轻语/停顿标签频率）
+            <input id="cpFishDensity" type="range" min="0" max="100" value="0">
+          </label>
+          <label>语速（<span id="cpSpeedV">1.0</span>x，播放速率）
+            <input id="cpSpeed" type="range" min="50" max="200" value="100">
+          </label>
+          <label>试听文字
+            <textarea id="cpFishPreview" rows="2">你好！今天也一起去寻找有趣的炼金素材吧！</textarea>
+            <button id="cpPreviewBtn" class="cd-btn wide">▶ 试听（用当前档位）</button>
+            <div class="hint" id="cpPreviewTip"></div>
+          </label>
+        </div>
         <label>语音识别（按住 🎙 说话；Whisper 兼容端点）
           <input id="cpAsrBase" placeholder="识别端点，如 https://api.groq.com/openai/v1">
           <input id="cpAsrModel" placeholder="whisper-large-v3 / whisper-1">

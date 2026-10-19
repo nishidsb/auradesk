@@ -56,8 +56,10 @@ window.companion.onDone(async ({ content, tools: toolCalls, audio }) => {
   trimChat()
   // TTS：api 音频直接播；否则浏览器本地合成
   const clean = stripTags(content)
-  if (clean && S.settings.ttsMode === 'api' && audio && audio.url) playAudio(audio.url)
+  if (clean && S.settings.ttsMode === 'api' && audio && audio.url) playAudio(audio.url, audio.speed)
   else if (clean && S.settings.ttsMode !== 'off') speakBrowser(clean)
+  // 新对话入账后刷新时间线（若抽屉开着）
+  if (!$('charDrawer').hidden && !$('tabPersona').hidden) renderTimeline()
 })
 
 window.companion.onError(({ message, partial }) => {
@@ -148,10 +150,12 @@ $('btnMic').addEventListener('pointerleave', micUp)
 
 /* ---------------- TTS 播放 ---------------- */
 let curAudio = null
-function playAudio (url) {
+function playAudio (url, speed) {
   try {
     if (curAudio) curAudio.pause()
     curAudio = new Audio(url)
+    // 语速：Fish API 本身不支持 speed，用播放速率实现
+    if (speed && speed !== 1) curAudio.playbackRate = speed
     document.body.id = 'speaking'
     curAudio.onended = () => { document.body.id = '' }
     curAudio.play()
@@ -222,9 +226,19 @@ async function showSpine (v) {
   const skelName = basename(decodeURIComponent(skelUrl))
   if (/\.json$/i.test(skelName)) assetManager.loadText(skelName)
   else assetManager.loadBinary(skelName)
+  // spine-canvas 4.3 没有 onLoadAll 回调，用 isLoadingComplete() 轮询；
+  // errors 里会记录真实加载失败原因（fetch 失败/404 等）
   await new Promise((resolve, reject) => {
-    assetManager.onLoadAll = () => resolve()
-    setTimeout(() => reject(new Error('Spine 资源加载超时')), 15000)
+    const t0 = Date.now()
+    const poll = () => {
+      if (assetManager.isLoadingComplete()) {
+        const errs = Object.values(assetManager.errors || {})
+        if (errs.length) reject(new Error('Spine 资源加载失败: ' + String(errs[0]).slice(0, 200)))
+        else resolve()
+      } else if (Date.now() - t0 > 15000) reject(new Error('Spine 资源加载超时'))
+      else setTimeout(poll, 80)
+    }
+    poll()
   })
   const atlas = assetManager.requireAtlas(basename(decodeURIComponent(atlasUrl)))
   let skeletonData
@@ -238,6 +252,7 @@ async function showSpine (v) {
   const skeleton = new SPINE.Skeleton(skeletonData)
   const state = new SPINE.AnimationState(skeletonData)
   const idle = skeletonData.animations.find((a) => /idle|待机/i.test(a.name)) || skeletonData.animations[0]
+  console.warn('[spine] 加载成功: 动画', skeletonData.animations.map((a) => a.name).join(','), '→ 播放', idle && idle.name)
   if (idle) state.setAnimation(0, idle, true)
   let talkTrack = -1
   spineRuntime = {
@@ -333,6 +348,7 @@ function refreshDrawer () {
   renderWorld()
   renderVisMode()
   renderMemory()
+  renderTimeline()
 }
 
 /* 抽屉 tab 切换：人设 / 形象 / 设置（全部 AI 设置整合在此，不再分散到主设置页） */
@@ -364,10 +380,34 @@ async function renderCpSettings () {
   $('cpTtsKey').value = cs.ttsApiKey || ''
   $('cpTtsRefAudio').value = cs.ttsRefAudio || ''
   $('cpTtsPromptText').value = cs.ttsPromptText || ''
+  $('cpFishBase').value = cs.fishBaseUrl || 'https://api.fish.audio/v1/tts'
+  $('cpFishModel').value = cs.fishModel || 's2.1-pro-free'
+  $('cpFishVoice').value = cs.fishVoiceId || ''
+  $('cpFishAsmr').value = cs.fishAsmrVoiceId || ''
+  $('cpFishFormat').value = cs.fishFormat || 'wav'
+  $('cpFishLatency').value = cs.fishLatency || 'normal'
+  $('cpFishFeeling').value = cs.fishFeeling || 0
+  $('cpFishDensity').value = cs.fishTagDensity || 0
+  $('cpSpeed').value = Math.round((cs.ttsSpeed || 1) * 100)
+  syncFishLabels()
+  syncFishVisible()
   $('cpAsrBase').value = cs.asrBaseUrl || ''
   $('cpAsrModel').value = cs.asrModel || 'whisper-1'
   $('cpAsrKey').value = cs.asrApiKey || ''
   $('cpAsrLang').value = cs.asrLang || 'auto'
+}
+function syncFishLabels () {
+  $('cpFishFeelingV').textContent = $('cpFishFeeling').value
+  $('cpFishDensityV').textContent = $('cpFishDensity').value
+  $('cpSpeedV').textContent = ($('cpSpeed').value / 100).toFixed(1)
+}
+/** Fish 专属字段只选 Fish 时显示；OpenAI 兼容字段只选 openai 时显示 */
+function syncFishVisible () {
+  const p = $('cpTtsProvider').value
+  $('cpFish').hidden = p !== 'fish'
+  $('cpTtsBase').hidden = p !== 'openai'
+  $('cpTtsRefAudio').hidden = p !== 'gptsovits'
+  $('cpTtsPromptText').hidden = p !== 'gptsovits'
 }
 const cpGather = () => ({
   apiBaseUrl: $('cpApiBase').value.trim(),
@@ -383,6 +423,15 @@ const cpGather = () => ({
   ttsApiKey: $('cpTtsKey').value.trim(),
   ttsRefAudio: $('cpTtsRefAudio').value.trim(),
   ttsPromptText: $('cpTtsPromptText').value.trim(),
+  ttsSpeed: $('cpSpeed').value / 100,
+  fishBaseUrl: $('cpFishBase').value.trim() || 'https://api.fish.audio/v1/tts',
+  fishModel: $('cpFishModel').value.trim() || 's2.1-pro-free',
+  fishVoiceId: $('cpFishVoice').value.trim(),
+  fishAsmrVoiceId: $('cpFishAsmr').value.trim(),
+  fishFormat: $('cpFishFormat').value,
+  fishLatency: $('cpFishLatency').value,
+  fishFeeling: Number($('cpFishFeeling').value) || 0,
+  fishTagDensity: Number($('cpFishDensity').value) || 0,
   asrBaseUrl: $('cpAsrBase').value.trim(),
   asrModel: $('cpAsrModel').value.trim(),
   asrLang: $('cpAsrLang').value,
@@ -394,6 +443,30 @@ async function cpSave () {
   setTimeout(() => { $('cpSaveTip').textContent = '' }, 3000)
 }
 $('cpSave').addEventListener('click', cpSave)
+$('cpTtsProvider').addEventListener('change', () => { syncFishVisible(); cpSave() })
+$('cpFishFeeling').addEventListener('input', syncFishLabels)
+$('cpFishDensity').addEventListener('input', syncFishLabels)
+$('cpSpeed').addEventListener('input', syncFishLabels)
+// 试听：保存当前设置后用当前档位合成并播放
+$('cpPreviewBtn').addEventListener('click', async () => {
+  const tip = $('cpPreviewTip')
+  try {
+    $('cpPreviewBtn').disabled = true
+    tip.textContent = '合成中…'
+    await cpSave()
+    const r = await window.companion.tts($('cpFishPreview').value.trim().slice(0, 300))
+    if (r && r.url) {
+      tip.textContent = ''
+      playAudio(r.url, r.speed)
+    } else {
+      tip.textContent = '失败：' + ((r && (r.message || r.fallback)) || '未知错误')
+    }
+  } catch (err) {
+    tip.textContent = '失败：' + (err && err.message)
+  } finally {
+    $('cpPreviewBtn').disabled = false
+  }
+})
 $('cpFetchModels').addEventListener('click', async () => {
   await cpSave()
   const btn = $('cpFetchModels')
@@ -483,6 +556,27 @@ function renderVisMode () {
 }
 
 /* ---------------- 长期记忆账本 ---------------- */
+/** 对话时间线：全部聊天记录（history 已持久化），参考 Horae append-only 账本 */
+function renderTimeline () {
+  const list = $('timelineList')
+  const items = (S.history || []).slice(-60)
+  if (!items.length) {
+    list.innerHTML = '<div class="mem-empty">还没有对话记录</div>'
+    return
+  }
+  list.innerHTML = ''
+  for (const m of items) {
+    const d = document.createElement('div')
+    d.className = 'tl-item'
+    const time = m.at ? new Date(m.at).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : ''
+    d.innerHTML = `<span class="tl-role ${m.role === 'user' ? 'me' : 'ai'}">${m.role === 'user' ? '你' : 'AI'}</span>` +
+      `<span class="mem-text">${esc(stripTags(m.content)).slice(0, 120)}</span>` +
+      `<span class="tl-time">${time}</span>`
+    list.appendChild(d)
+  }
+  list.scrollTop = list.scrollHeight
+}
+
 async function renderMemory () {
   const list = $('memList')
   list.innerHTML = '<div class="mem-empty">加载中…</div>'

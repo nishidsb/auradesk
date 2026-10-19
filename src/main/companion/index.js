@@ -143,7 +143,9 @@ async function handleMessage (char, userText) {
           baseUrl: c.ttsBaseUrl || c.apiBaseUrl, apiKey: c.ttsApiKey || c.apiKey,
           model: c.ttsModel || 'tts-1', voice: (char.voice && char.voice.apiVoice) || 'alloy',
           refAudio: c.ttsRefAudio, textLang: c.ttsTextLang, promptText: c.ttsPromptText, promptLang: c.ttsPromptLang,
-          speed: 1, text: full
+          fishModel: c.fishModel, voiceId: c.fishVoiceId, asmrVoiceId: c.fishAsmrVoiceId,
+          format: c.fishFormat, latency: c.fishLatency, feeling: c.fishFeeling, tagDensity: c.fishTagDensity,
+          speed: c.ttsSpeed || 1, text: full
         })
       } catch (err) {
         log('[companion] TTS 失败，回退浏览器:', err.message)
@@ -200,6 +202,12 @@ function settingsView () {
     ttsMode: c.ttsMode || 'browser', ttsProvider: c.ttsProvider || 'openai',
     ttsBaseUrl: c.ttsBaseUrl || '', ttsModel: c.ttsModel || '', ttsApiKey: c.ttsApiKey || '',
     ttsRefAudio: c.ttsRefAudio || '', ttsTextLang: c.ttsTextLang || 'zh', ttsPromptText: c.ttsPromptText || '', ttsPromptLang: c.ttsPromptLang || 'zh',
+    ttsSpeed: c.ttsSpeed || 1,
+    fishBaseUrl: c.fishBaseUrl || 'https://api.fish.audio/v1/tts',
+    fishModel: c.fishModel || 's2.1-pro-free',
+    fishVoiceId: c.fishVoiceId || '', fishAsmrVoiceId: c.fishAsmrVoiceId || '',
+    fishFormat: c.fishFormat || 'wav', fishLatency: c.fishLatency || 'normal',
+    fishFeeling: c.fishFeeling || 0, fishTagDensity: c.fishTagDensity || 0,
     asrBaseUrl: c.asrBaseUrl || '', asrModel: c.asrModel || 'whisper-1', asrLang: c.asrLang || 'auto', asrApiKey: c.asrApiKey || ''
   }
 }
@@ -329,9 +337,11 @@ function registerIpc () {
         baseUrl: c.ttsBaseUrl || c.apiBaseUrl, apiKey: c.ttsApiKey || c.apiKey,
         model: c.ttsModel || 'tts-1', voice: (character.get().voice && character.get().voice.apiVoice) || 'alloy',
         refAudio: c.ttsRefAudio, textLang: c.ttsTextLang, promptText: c.ttsPromptText, promptLang: c.ttsPromptLang,
-        speed: 1, text
+        fishModel: c.fishModel, voiceId: c.fishVoiceId, asmrVoiceId: c.fishAsmrVoiceId,
+        format: c.fishFormat, latency: c.fishLatency, feeling: c.fishFeeling, tagDensity: c.fishTagDensity,
+        speed: c.ttsSpeed || 1, text
       })
-      return { ok: true, url: r.url }
+      return { ok: true, url: r.url, speed: r.speed }
     } catch (err) {
       return { fallback: true, message: err.message }
     }

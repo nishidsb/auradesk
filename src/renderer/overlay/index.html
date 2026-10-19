@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' aura: data:; img-src 'self' aura: data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; media-src 'self' aura: blob: https:;" />
+  <title>AuraDesk</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-wall="desktop">
+  <div class="stage" id="stage">
+
+    <!-- 左右两侧常驻封面栏：中间整块留给壁纸 -->
+    <div class="rails" id="rails">
+      <aside class="rail" data-side="left">
+        <div class="rail-grid" id="gridL" data-hot></div>
+        <div class="rail-icons" id="iconsL">
+          <div class="plat" id="platL"></div>
+          <div class="rail-hr"></div>
+          <nav class="dock" id="dock" data-hot>
+            <button class="dock-btn" id="dockLib" title="全部游戏 · 搜索"></button>
+            <button class="dock-btn" id="dockSet" title="设置"></button>
+            <button class="dock-btn" id="dockHide" title="隐藏桌面层"></button>
+          </nav>
+        </div>
+      </aside>
+
+      <aside class="rail" data-side="right">
+        <div class="rail-grid" id="gridR" data-hot></div>
+      </aside>
+    </div>
+
+    <!-- 库里一个游戏都没有时的提示 -->
+    <div class="rail-empty" id="railEmpty" hidden>
+      <div class="rail-empty-t">库里还没有游戏</div>
+      <div class="rail-empty-s">从 Steam / Epic 导入，或者扫描开始菜单里已经装好的程序</div>
+      <button class="rail-empty-btn" id="railEmptyBtn" data-hot>打开设置 →「资源库」</button>
+    </div>
+
+    <!-- 游戏库：点侧栏第一个图标铺开，搜索 / 筛选 / 管理都在这里 -->
+    <section class="library" id="library" hidden data-hot>
+      <div class="lib-glow" id="libGlow"></div>
+
+      <div class="lib-inner">
+        <header class="lib-head">
+          <button class="lib-back" id="libBack" data-hot title="返回桌面（Esc）"></button>
+          <div class="lib-headtext">
+            <h1 class="lib-title">游戏库<span class="lib-count" id="libCount"></span></h1>
+            <div class="lib-sub" id="libSub">点封面直接启动 · 右键更多操作</div>
+          </div>
+          <label class="lib-search" data-hot>
+            <span class="lib-search-ico" id="libSearchIco"></span>
+            <input id="libSearch" type="text" placeholder="搜索游戏" spellcheck="false" autocomplete="off" />
+            <kbd class="lib-kbd">/</kbd>
+          </label>
+        </header>
+
+        <div class="lib-chips" id="libChips"></div>
+
+        <div class="lib-scroll" id="libScroll">
+          <div class="lib-grid" id="libGrid"></div>
+          <div class="lib-empty" id="libEmpty" hidden>
+            <div class="lib-empty-title" id="libEmptyTitle">还没有游戏</div>
+            <div class="lib-empty-sub" id="libEmptySub">从 Steam / Epic 导入，或者扫描开始菜单里已经装好的程序</div>
+            <button class="lib-empty-btn" id="libEmptyBtn" data-hot>打开设置 →「资源库」</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 右键菜单：侧栏和整页库共用，所以挂在 stage 下 -->
+    <div class="ctx" id="ctx" hidden data-hot>
+      <button class="ctx-item" data-ctx="launch" id="ctxLaunch">启动</button>
+      <button class="ctx-item" data-ctx="reveal" id="ctxReveal">打开文件位置</button>
+      <div class="ctx-sep"></div>
+      <button class="ctx-item danger" data-ctx="remove" id="ctxRemove">从库中移除</button>
+    </div>
+
+    <!-- 播放器信息：贴左下角 -->
+    <div class="cc" id="player" data-hot>
+      <div class="cc-main">
+        <div class="cc-cover" id="pCover"></div>
+        <div class="cc-meta">
+          <div class="cc-title" id="pTitle">未在播放</div>
+          <div class="cc-artist" id="pArtist">在 Listen1 里放一首歌</div>
+        </div>
+      </div>
+      <div class="cc-progress" id="progress">
+        <div class="cc-bar"><div class="cc-fill" id="barFill"></div><div class="cc-knob" id="barDot"></div></div>
+        <div class="cc-time"><span id="tCur">0:00</span><span class="sep">/</span><span id="tDur">0:00</span></div>
+      </div>
+    </div>
+
+    <!-- 播放控制：底部居中 -->
+    <div class="cc-ctrl" id="ctrl" data-hot>
+      <button class="cc-btn" id="pPrev" title="上一首"></button>
+      <button class="cc-btn main" id="pPlay" title="播放/暂停"></button>
+      <button class="cc-btn" id="pNext" title="下一首"></button>
+    </div>
+
+    <!-- 歌词：本地 .lrc 或用「歌手 + 歌名」联网找，两行居中显示 -->
+    <div class="cc-lyrics" id="lyrics" hidden></div>
+
+    <!-- 时钟 / 日期 / 天气：右下角 -->
+    <div class="clock" id="clockbox" data-hot>
+      <div class="clock-time" id="cTime">--:--</div>
+      <div class="clock-line">
+        <span id="cDate"></span>
+        <span class="clock-dot"></span>
+        <span id="cWeather"></span>
+      </div>
+    </div>
+
+    <!-- 控制舱：音量 / 音频设备 / 显示桌面（时钟上方小按钮，弹出面板） -->
+    <div class="ctl" id="ctlbox">
+      <div class="ctl-pop" id="ctlPop" data-hot hidden>
+        <div class="ctl-head">
+          <span>音量</span>
+          <button class="ctl-mute" id="ctlMute" title="静音开关">静音</button>
+        </div>
+        <input class="ctl-vol" id="ctlVol" type="range" min="0" max="100" step="1">
+        <div class="ctl-num" id="ctlVolNum">--</div>
+        <div class="ctl-title">输出设备</div>
+        <div class="ctl-devs" id="ctlDevOut"></div>
+        <div class="ctl-title">输入设备</div>
+        <div class="ctl-devs" id="ctlDevIn"></div>
+        <button class="ctl-desk" id="ctlDesk">显示桌面</button>
+      </div>
+      <button class="ctl-btn" id="ctlBtn" data-hot title="音量 / 音频设备 / 显示桌面">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M4 9v6h4l5 4V5L8 9H4z"/><path id="ctlWave" fill="currentColor" d="M16.5 8.6a4.5 4.5 0 0 1 0 6.8l-1.2-1.4a2.7 2.7 0 0 0 0-4l1.2-1.4zm2.2-2.5a8 8 0 0 1 0 11.8l-1.2-1.4a6.2 6.2 0 0 0 0-9l1.2-1.4z"/></svg>
+      </button>
+    </div>
+
+    <div class="toast" id="toast"></div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

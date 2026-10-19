@@ -1,0 +1,17 @@
+# 依赖与构建产物
+node_modules/
+dist/
+build/
+out/
+
+# 运行日志
+*.log
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 本地临时脚本
+tools/net-test.js

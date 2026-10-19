@@ -1,0 +1,138 @@
+/* ============================================================
+   AuraDesk 边缘任务条（独立置顶窗口，高 118px = 3px 触发条 + 卡片面板）
+   卡片样式与桌面卡片一致：圆角玻璃、紫 hairline、悬停放大；
+   卡片内容 = 运行窗口的实时画面，双图交叉淡入防闪
+   ============================================================ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: transparent;
+  font-family: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  -webkit-user-select: none; user-select: none;
+}
+
+/* 3px 透明触发条：唯一常驻屏幕内、可交互的部分 */
+#hot {
+  position: absolute; left: 0; right: 0; height: 3px;
+  z-index: 2;
+  background: transparent;
+}
+body.bottom #hot { bottom: 0; }
+body:not(.bottom) #hot { top: 0; }
+
+/* 卡片面板：透明玻璃底（与桌面层一致），卡片群居中 */
+#bar {
+  position: absolute; left: 0; right: 0;
+  height: 115px;
+  z-index: 1;
+  padding: 9px 10px;
+  background: rgba(13, 15, 22, .58);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .3), inset 0 1px 0 rgba(255, 255, 255, .06);
+  transition: transform .22s cubic-bezier(.2, .8, .3, 1);
+  display: flex;
+  align-items: center;
+  -webkit-backdrop-filter: none;
+}
+body:not(.bottom) #bar { top: 0; transform: translateY(-102%); border-top: 0; }
+body.bottom #bar { bottom: 0; transform: translateY(102%); border-bottom: 0; }
+body.open #bar { transform: translateY(0); }
+
+#cards {
+  display: flex;
+  align-items: center;
+  justify-content: safe center;
+  gap: 9px;
+  width: 100%;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(143,123,255,.4) transparent;
+  padding: 2px 2px 6px;
+  margin: 0 auto;
+}
+#cards::-webkit-scrollbar { height: 5px; }
+#cards::-webkit-scrollbar-thumb { background: rgba(143,123,255,.35); border-radius: 3px; }
+#cards .empty { color: rgba(255,255,255,.38); font-size: 12px; padding: 0 12px; }
+
+/* ---- 窗口卡片（与桌面卡片同款视觉） ---- */
+.ecard {
+  position: relative;
+  flex: 0 0 auto;
+  width: 156px;
+  height: 88px;
+  border-radius: 12px;
+  background: rgba(22, 25, 36, .85);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .09), 0 6px 18px rgba(0, 0, 0, .38);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform .16s cubic-bezier(.2, .8, .3, 1), box-shadow .16s;
+  animation: ecIn .22s cubic-bezier(.2, .8, .3, 1) backwards;
+}
+@keyframes ecIn { from { opacity: 0; transform: translateY(10px); } }
+.ecard:hover {
+  transform: translateY(-3px) scale(1.045);
+  box-shadow: inset 0 0 0 1px rgba(143, 123, 255, .55), 0 12px 26px rgba(0, 0, 0, .5);
+  z-index: 2;
+}
+.ecard.fg { box-shadow: inset 0 0 0 1px rgba(90, 210, 130, .55), 0 6px 18px rgba(0, 0, 0, .38); }
+.ecard.fg:hover { box-shadow: inset 0 0 0 1px rgba(90, 210, 130, .75), 0 12px 26px rgba(0, 0, 0, .5); }
+.ecard.min { opacity: .68; }
+
+/* 卡片内容 = 窗口实时画面（双图交叉淡入） */
+.ecard .shot {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover; object-position: top;
+  opacity: 0;
+  transition: opacity .3s ease;
+}
+.ecard .shot.on { opacity: 1; }
+/* 画面未到时先给进程首字母色块 */
+.ecard .ph {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  font-size: 20px; font-weight: 600;
+  color: rgba(255, 255, 255, .85);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .45);
+}
+.ecard.has-shot .ph { display: none; }
+
+/* 底部名称条（悬停浮现，桌面卡片同款语言） */
+.ecard .name {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 14px 8px 5px;
+  background: linear-gradient(transparent, rgba(8, 9, 14, .88));
+  color: #e8eaf4;
+  font-size: 10.5px;
+  line-height: 1.3;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity .15s, transform .15s;
+}
+.ecard:hover .name { opacity: 1; transform: translateY(0); }
+
+/* 状态角标：前台 / 最小化 */
+.ecard .badge {
+  position: absolute; top: 6px; right: 6px;
+  width: 7px; height: 7px; border-radius: 50%;
+}
+.ecard.fg .badge { background: #5ad282; box-shadow: 0 0 7px rgba(90, 210, 130, .9); }
+.ecard.min .badge { background: #6b7180; }
+
+/* 切换失败等提示 */
+#toast {
+  position: fixed;
+  left: 50%; bottom: 12px;
+  transform: translateX(-50%);
+  padding: .4rem .8rem;
+  border-radius: .6rem;
+  background: rgba(70, 34, 34, .95);
+  border: 1px solid rgba(230, 120, 120, .4);
+  color: #ffd9d9;
+  font-size: .7rem;
+  z-index: 10;
+}

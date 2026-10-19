@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  
+  <title>AuraDesk</title>
+  <link rel="stylesheet" href="../../src/renderer/overlay/style.css" />
+</head>
+<body data-wall="desktop">
+  <div class="demo-desktop"></div>
+  <style>
+    .demo-desktop {
+      position: fixed; inset: 0; z-index: 0;
+      background:
+        radial-gradient(58% 64% at 22% 26%, rgba(92,156,220,.62), transparent 66%),
+        radial-gradient(50% 56% at 78% 70%, rgba(152,112,222,.55), transparent 64%),
+        radial-gradient(46% 50% at 62% 16%, rgba(120,220,214,.28), transparent 66%),
+        linear-gradient(145deg, #0a1626 0%, #12293f 46%, #080d16 100%);
+    }
+    .demo-desktop::after {
+      content: "↑ 这一层模拟 Wallpaper Engine 的动态壁纸，AuraDesk 不覆盖它";
+      position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
+      text-align: center; font: 600 13px/1.7 system-ui, sans-serif;
+      letter-spacing: .12em; color: rgba(255,255,255,.26);
+    }
+    .stage { z-index: 1; }
+  </style>
+  <div class="stage" id="stage">
+
+    <!-- 左右两侧常驻封面栏：中间整块留给壁纸 -->
+    <div class="rails" id="rails">
+      <aside class="rail" data-side="left">
+        <div class="rail-grid" id="gridL" data-hot></div>
+        <div class="rail-icons" id="iconsL">
+          <div class="plat" id="platL"></div>
+          <div class="rail-hr"></div>
+          <nav class="dock" id="dock" data-hot>
+            <button class="dock-btn" id="dockLib" title="全部游戏 · 搜索"></button>
+            <button class="dock-btn" id="dockSet" title="设置"></button>
+            <button class="dock-btn" id="dockHide" title="隐藏桌面层"></button>
+          </nav>
+        </div>
+      </aside>
+
+      <aside class="rail" data-side="right">
+        <div class="rail-icons" id="iconsR">
+          <div class="plat" id="platR"></div>
+        </div>
+        <div class="rail-grid" id="gridR" data-hot></div>
+      </aside>
+    </div>
+
+    <!-- 库里一个游戏都没有时的提示 -->
+    <div class="rail-empty" id="railEmpty" hidden>
+      <div class="rail-empty-t">库里还没有游戏</div>
+      <div class="rail-empty-s">从 Steam / Epic 导入，或者扫描开始菜单里已经装好的程序</div>
+      <button class="rail-empty-btn" id="railEmptyBtn" data-hot>打开设置 →「资源库」</button>
+    </div>
+
+    <!-- 游戏库：点侧栏第一个图标铺开，搜索 / 筛选 / 管理都在这里 -->
+    <section class="library" id="library" hidden data-hot>
+      <div class="lib-glow" id="libGlow"></div>
+
+      <div class="lib-inner">
+        <header class="lib-head">
+          <button class="lib-back" id="libBack" data-hot title="返回桌面（Esc）"></button>
+          <div class="lib-headtext">
+            <h1 class="lib-title">游戏库<span class="lib-count" id="libCount"></span></h1>
+            <div class="lib-sub" id="libSub">点封面直接启动 · 右键更多操作</div>
+          </div>
+          <label class="lib-search" data-hot>
+            <span class="lib-search-ico" id="libSearchIco"></span>
+            <input id="libSearch" type="text" placeholder="搜索游戏" spellcheck="false" autocomplete="off" />
+            <kbd class="lib-kbd">/</kbd>
+          </label>
+        </header>
+
+        <div class="lib-chips" id="libChips"></div>
+
+        <div class="lib-scroll" id="libScroll">
+          <div class="lib-grid" id="libGrid"></div>
+          <div class="lib-empty" id="libEmpty" hidden>
+            <div class="lib-empty-title" id="libEmptyTitle">还没有游戏</div>
+            <div class="lib-empty-sub" id="libEmptySub">从 Steam / Epic 导入，或者扫描开始菜单里已经装好的程序</div>
+            <button class="lib-empty-btn" id="libEmptyBtn" data-hot>打开设置 →「资源库」</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 右键菜单：侧栏和整页库共用，所以挂在 stage 下 -->
+    <div class="ctx" id="ctx" hidden data-hot>
+      <button class="ctx-item" data-ctx="launch" id="ctxLaunch">启动</button>
+      <button class="ctx-item" data-ctx="reveal" id="ctxReveal">打开文件位置</button>
+      <div class="ctx-sep"></div>
+      <button class="ctx-item danger" data-ctx="remove" id="ctxRemove">从库中移除</button>
+    </div>
+
+    <!-- 播放器信息：贴左下角 -->
+    <div class="cc" id="player" data-hot>
+      <div class="cc-main">
+        <div class="cc-cover" id="pCover"></div>
+        <div class="cc-meta">
+          <div class="cc-title" id="pTitle">未在播放</div>
+          <div class="cc-artist" id="pArtist">在 Listen1 里放一首歌</div>
+        </div>
+      </div>
+      <div class="cc-progress" id="progress">
+        <div class="cc-bar"><div class="cc-fill" id="barFill"></div><div class="cc-knob" id="barDot"></div></div>
+        <div class="cc-time"><span id="tCur">0:00</span><span class="sep">/</span><span id="tDur">0:00</span></div>
+      </div>
+    </div>
+
+    <!-- 播放控制：底部居中 -->
+    <div class="cc-ctrl" id="ctrl" data-hot>
+      <button class="cc-btn" id="pPrev" title="上一首"></button>
+      <button class="cc-btn main" id="pPlay" title="播放/暂停"></button>
+      <button class="cc-btn" id="pNext" title="下一首"></button>
+    </div>
+
+    <!-- 歌词（本地音源才有，Listen1 走 SMTC 拿不到歌词） -->
+    <div class="cc-lyrics" id="lyrics" hidden></div>
+
+    <!-- 时钟 / 日期 / 天气：右下角 -->
+    <div class="clock" id="clockbox" data-hot>
+      <div class="clock-time" id="cTime">--:--</div>
+      <div class="clock-line">
+        <span id="cDate"></span>
+        <span class="clock-dot"></span>
+        <span id="cWeather"></span>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+  </div>
+  <script src="mock.js"></script>
+  <script src="../../src/renderer/overlay/app.js"></script>
+</body>
+</html>

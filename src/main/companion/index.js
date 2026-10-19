@@ -15,13 +15,14 @@ const memory = require('./memory')
 const llm = require('./llm')
 const tools = require('./tools')
 const tts = require('./tts')
+const pet = require('./pet')
 
 let win = null
 let genAbort = null // AbortController
 
 function cfg () {
-  const g = store.get()
-  if (!g.companion) store.patchGlobal({ companion: {} })
+  const g = store.get() // { global: {...}, displays: {...} } —— companion 配置在 global 下
+  if (!g.global.companion) store.patchGlobal({ companion: {} })
   return store.get().global.companion || {}
 }
 function patchCfg (patch) {
@@ -93,6 +94,9 @@ function systemPrompt (char, userText) {
   }
   const memText = memory.summaryText(char.id, userText)
   if (memText) parts.push(memText)
+  // 多语言语音：用户可能说中/英/日，理解后按配置语言回复（即翻译）
+  const langName = { zh: '中文', en: '英文', ja: '日文' }[cfg().replyLang || 'zh'] || '中文'
+  parts.push('【语言】用户可能用中文、英文或日文说话（语音识别后可能保留原文），理解全部语言；无论对方说什么语言，都用' + langName + '回复。')
   parts.push('【当前时间】' + new Date().toLocaleString('zh-CN', { hour12: false }))
   return parts.join('\n\n')
 }
@@ -169,7 +173,8 @@ async function transcribe (base64, mime) {
     const fd = new FormData()
     fd.append('file', new Blob([buf], { type: mime || 'audio/webm' }), 'audio.webm')
     fd.append('model', c.asrModel || 'whisper-1')
-    if (c.asrLang) fd.append('language', c.asrLang)
+    // auto（默认）不传 language，交给 Whisper 自动识别中/英/日
+    if (c.asrLang && c.asrLang !== 'auto') fd.append('language', c.asrLang)
     const headers = {}
     if (c.asrApiKey || c.apiKey) headers.Authorization = 'Bearer ' + (c.asrApiKey || c.apiKey)
     const res = await fetch(url, { method: 'POST', headers, body: fd })
@@ -192,6 +197,8 @@ function registerIpc () {
       settings: {
         apiBaseUrl: c.apiBaseUrl || '', apiModel: c.apiModel || '', apiKey: c.apiKey || '',
         visionOn: c.visionOn !== false,
+        petOn: c.petOn !== false,
+        replyLang: c.replyLang || 'zh',
         ttsMode: c.ttsMode || 'browser', ttsProvider: c.ttsProvider || 'openai',
         ttsBaseUrl: c.ttsBaseUrl || '', ttsModel: c.ttsModel || '', ttsApiKey: c.ttsApiKey || '',
         ttsRefAudio: c.ttsRefAudio || '', ttsTextLang: c.ttsTextLang || 'zh', ttsPromptText: c.ttsPromptText || '', ttsPromptLang: c.ttsPromptLang || 'zh',
@@ -201,18 +208,35 @@ function registerIpc () {
   })
 
   ipcMain.handle('companion:models', async (_e, baseUrl, apiKey) => llm.listModels({ baseUrl, apiKey }))
-  ipcMain.handle('companion:patch-settings', (_e, patch) => { patchCfg(patch); return true })
+  ipcMain.handle('companion:patch-settings', (_e, patch) => {
+    patchCfg(patch)
+    // 桌面角色开关实时生效
+    if (patch.petOn === true) pet.show()
+    else if (patch.petOn === false) pet.hide()
+    return true
+  })
+
+  // 长期记忆账本（可视化 + 手动删除）
+  ipcMain.handle('companion:memory-list', () => {
+    const mem = memory.get(character.get().id)
+    return (mem.events || []).slice(-120).reverse()
+  })
+  ipcMain.handle('companion:memory-del', (_e, seq) => memory.removeEvent(character.get().id, seq))
 
   ipcMain.handle('companion:set-active', (_e, id) => {
     const chars = character.list()
     const i = chars.findIndex((c) => c.id === id)
     if (i > 0) { const [c] = chars.splice(i, 1); chars.unshift(c); character.save(chars) }
-    return { char: character.get(id), history: character.history(id) }
+    const nc = character.get(id)
+    pet.refresh(nc)
+    return { char: nc, history: character.history(id) }
   })
 
   ipcMain.handle('companion:save-character', (_e, char) => {
     character.upsert(char)
-    return character.get(char.id)
+    const nc = character.get(char.id)
+    pet.refresh(nc)
+    return nc
   })
   ipcMain.handle('companion:new-character', (_e, name) => {
     const id = character.newId(name || 'char')
@@ -224,6 +248,7 @@ function registerIpc () {
     const chars = character.list()
     if (chars.length <= 1) return false
     character.remove(id)
+    pet.refresh(character.get())
     return true
   })
 
@@ -237,6 +262,9 @@ function registerIpc () {
     if (r.canceled || !r.filePaths.length) return ''
     return character.importAsset(charId, r.filePaths[0])
   })
+
+  // 桌面角色窗口 IPC（当前角色 getter / 配置回写）
+  pet.registerIpc(() => character.get(), patchCfg)
 
   ipcMain.handle('companion:asset-url', (_e, p) => character.assetUrl(p))
 
@@ -291,6 +319,12 @@ function stop () {
   win = null
 }
 
+/** 开机按配置拉起桌面角色（默认开） */
+function bootPet () {
+  const g = store.get()
+  if (!g.global.companion || g.global.companion.petOn !== false) pet.show()
+}
+
 app.on('before-quit', () => stop())
 
-module.exports = { createWindow, registerIpc, stop }
+module.exports = { createWindow, registerIpc, stop, bootPet }

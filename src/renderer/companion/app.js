@@ -330,6 +330,7 @@ function refreshDrawer () {
   $('fPersona').value = editing.persona
   renderWorld()
   renderVisMode()
+  renderMemory()
 }
 function renderWorld () {
   const list = $('worldList')
@@ -401,6 +402,32 @@ function renderVisMode () {
     vrm: '导入 VRM / GLB 3D 模型'
   }
   $('visHint').textContent = hints[mode]
+}
+
+/* ---------------- 长期记忆账本 ---------------- */
+async function renderMemory () {
+  const list = $('memList')
+  list.innerHTML = '<div class="mem-empty">加载中…</div>'
+  let events = []
+  try { events = await window.companion.memoryList() } catch {}
+  list.innerHTML = ''
+  if (!events.length) {
+    list.innerHTML = '<div class="mem-empty">还没有记忆——聊天时说「记住我喜欢…」，AI 会自动记下来</div>'
+    return
+  }
+  const catName = { promise: '承诺', preference: '偏好', relation: '关系', fact: '事实', task: '任务' }
+  for (const ev of events) {
+    const d = document.createElement('div')
+    d.className = 'mem-item'
+    d.innerHTML = `<span class="mem-cat c-${esc(ev.cat || 'fact')}">${esc(catName[ev.cat] || '事实')}</span>` +
+      `<span class="mem-text">${esc(ev.text)}</span>` +
+      '<button class="mem-del" title="删除这条记忆">✕</button>'
+    d.children[2].addEventListener('click', async () => {
+      await window.companion.memoryDel(ev.seq)
+      renderMemory()
+    })
+    list.appendChild(d)
+  }
 }
 for (const b of $('visMode').children) {
   b.addEventListener('click', () => {

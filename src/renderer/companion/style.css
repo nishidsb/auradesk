@@ -182,3 +182,25 @@ html, body {
   font-size: 13px; cursor: pointer;
 }
 .cd-save:hover { filter: brightness(1.15); }
+
+/* ---- 长期记忆账本 ---- */
+.mem-list { display: flex; flex-direction: column; gap: 5px; max-height: 220px; overflow-y: auto; }
+.mem-item {
+  display: flex; align-items: center; gap: 7px;
+  background: rgba(255,255,255,.04); border-radius: 8px; padding: 6px 8px; font-size: 12px;
+}
+.mem-cat {
+  flex: none; font-size: 10px; padding: 2px 7px; border-radius: 99px;
+  background: rgba(143,123,255,.3); color: #d9d3ff;
+}
+.mem-cat.c-preference { background: rgba(90,210,130,.28); color: #c9f2d6; }
+.mem-cat.c-promise { background: rgba(255,190,90,.28); color: #ffe9c4; }
+.mem-cat.c-relation { background: rgba(255,120,150,.28); color: #ffd4de; }
+.mem-cat.c-task { background: rgba(90,180,255,.28); color: #cfe8ff; }
+.mem-text { flex: 1; color: #e8eaf2; word-break: break-all; }
+.mem-del {
+  flex: none; width: 18px; height: 18px; border: 0; border-radius: 50%;
+  background: none; color: rgba(255,255,255,.35); cursor: pointer; font-size: 10px;
+}
+.mem-del:hover { background: rgba(200,60,60,.7); color: #fff; }
+.mem-empty { font-size: 11px; color: rgba(255,255,255,.35); padding: 4px 2px; }

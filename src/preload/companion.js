@@ -17,6 +17,15 @@ contextBridge.exposeInMainWorld('companion', {
   transcribe: (b64, mime) => ipcRenderer.invoke('companion:transcribe', b64, mime),
   tts: (text) => ipcRenderer.invoke('companion:tts', text),
   win: (action) => ipcRenderer.invoke('companion:win', action),
+  // 桌面角色
+  petShow: () => ipcRenderer.invoke('pet:show'),
+  petHide: () => ipcRenderer.invoke('pet:hide'),
+  petWin: (action) => ipcRenderer.invoke('pet:win', action),
+  petGetChar: () => ipcRenderer.invoke('pet:get-char'),
+  onPetRefresh: (cb) => ipcRenderer.on('companion:pet-refresh', (_e, d) => cb(d)),
+  // 长期记忆账本
+  memoryList: () => ipcRenderer.invoke('companion:memory-list'),
+  memoryDel: (seq) => ipcRenderer.invoke('companion:memory-del', seq),
   onDelta: (cb) => ipcRenderer.on('companion:delta', (_e, d) => cb(d)),
   onDone: (cb) => ipcRenderer.on('companion:done', (_e, d) => cb(d)),
   onError: (cb) => ipcRenderer.on('companion:error', (_e, d) => cb(d))

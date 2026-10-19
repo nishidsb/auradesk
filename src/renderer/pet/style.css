@@ -1,0 +1,26 @@
+/* 桌面角色：整窗透明，只有角色本体 */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
+
+body { -webkit-app-region: drag; }
+
+#stage { position: absolute; inset: 0; }
+#stage canvas, #stage img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+
+#stageFallback {
+  position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%);
+  font-size: 42px; color: #8f7bff; text-shadow: 0 0 18px rgba(143, 123, 255, .55);
+}
+
+/* 悬停才出现的小关闭条，平时完全隐形 */
+#petBar {
+  position: absolute; top: 6px; right: 6px;
+  opacity: 0; transition: opacity .2s;
+  -webkit-app-region: no-drag;
+}
+body:hover #petBar { opacity: .9; }
+#btnPetClose {
+  width: 22px; height: 22px; border: 0; border-radius: 50%;
+  background: rgba(15, 18, 24, .72); color: #cfd4e0; cursor: pointer; font-size: 12px;
+}
+#btnPetClose:hover { background: rgba(200, 60, 60, .8); color: #fff; }

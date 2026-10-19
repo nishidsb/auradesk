@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file: blob: aura:; img-src 'self' file: blob: data: aura:; media-src 'self' file: blob: aura:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="stage">
+    <canvas id="vrmCanvas" hidden></canvas>
+    <canvas id="spineCanvas" hidden></canvas>
+    <img id="stillImg" alt="" hidden>
+    <div id="stageFallback" hidden>✦</div>
+  </div>
+  <div id="petBar">
+    <button id="btnPetClose" title="收起（设置 → AI 可重新打开）">✕</button>
+  </div>
+  <script src="../companion/libs.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

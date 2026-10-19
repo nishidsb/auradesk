@@ -1,0 +1,93 @@
+'use strict'
+/**
+ * AI 伴侣 · 桌面角色
+ * 把当前角色的形象（立绘 / Spine / VRM）以透明无边框窗口显示在桌面右下角，
+ * 可拖动、可关闭；角色保存/切换后自动刷新（notifyPet）。
+ * 独立窗口不抢焦点、不进任务栏，普通层级（会被其他窗口盖住，像桌面的一部分）。
+ */
+const { BrowserWindow, screen } = require('electron')
+const path = require('node:path')
+const store = require('../store')
+const { log } = require('../logger')
+
+let win = null
+
+function petCfg () {
+  const g = store.get()
+  return (g.global && g.global.companion) || {}
+}
+
+function createWindow () {
+  const wa = screen.getPrimaryDisplay().workArea
+  const W = 380
+  const H = 620
+  win = new BrowserWindow({
+    width: W, height: H,
+    x: Math.max(0, wa.x + wa.width - W - 24),
+    y: Math.max(0, wa.y + wa.height - H - 8),
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    resizable: false,
+    movable: true,
+    show: false,
+    skipTaskbar: true,
+    focusable: true,
+    title: 'Aura 桌面角色',
+    webPreferences: {
+      // 本文件在 src/main/companion/ 下，须回跳两级到 src/ 根
+      preload: path.join(__dirname, '../../preload/companion.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  })
+  win.setAlwaysOnTop(false)
+  win.loadFile(path.join(__dirname, '../../renderer/pet/index.html'))
+  const wc = win.webContents
+  wc.on('did-fail-load', (_e, code, desc, url) => log('[pet] 加载失败', code, desc, url))
+  wc.on('render-process-gone', (_e, d) => log('[pet] 渲染进程退出', JSON.stringify(d)))
+  wc.on('console-message', (_e, level, message, line, sourceId) => {
+    if (level >= 2) log('[pet] 渲染层:', message, '@', sourceId + ':' + line)
+  })
+  win.once('ready-to-show', () => win.showInactive())
+  // 兜底：透明窗口 ready-to-show 不可靠（同 AI 面板）
+  const ensureShow = () => { if (win && !win.isDestroyed() && !win.isVisible()) win.showInactive() }
+  wc.once('did-finish-load', () => setTimeout(ensureShow, 800))
+  setTimeout(ensureShow, 3000)
+  win.on('closed', () => { win = null })
+  log('[pet] 桌面角色窗口已创建')
+}
+
+function show () {
+  if (win && !win.isDestroyed()) { if (!win.isVisible()) win.showInactive(); return }
+  createWindow()
+}
+
+function hide () {
+  if (win && !win.isDestroyed()) win.hide()
+}
+
+/** 角色保存/切换后通知刷新（把最新角色卡带给渲染层） */
+function refresh (char) {
+  if (win && !win.isDestroyed() && win.isVisible()) {
+    win.webContents.send('companion:pet-refresh', { char })
+  }
+}
+
+function registerIpc (getChar, patchCfgFn) {
+  const { ipcMain } = require('electron')
+  ipcMain.handle('pet:show', () => { show(); return true })
+  ipcMain.handle('pet:hide', () => {
+    hide()
+    if (patchCfgFn) patchCfgFn({ petOn: false })
+    return true
+  })
+  ipcMain.handle('pet:win', (_e, action) => {
+    if (!win || win.isDestroyed()) return
+    if (action === 'close') { hide(); if (patchCfgFn) patchCfgFn({ petOn: false }) }
+    return true
+  })
+  ipcMain.handle('pet:get-char', () => getChar())
+}
+
+module.exports = { show, hide, refresh, registerIpc }

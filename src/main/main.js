@@ -716,6 +716,7 @@ app.whenReady().then(() => {
   // AI 伴侣：IPC + 贾维斯工具集注入（复用 launcher 状态与卡片启动）
   companion.registerIpc()
   require('./companion/tools').init(taskbar, broadcastAll, launchGame)
+  companion.bootPet()
   registerShortcuts()
   createTray()
   applyMusicSource()

@@ -760,7 +760,35 @@ async function renderCompanion () {
       ${inp('cpAsrBase', '识别端点', 'Whisper 兼容 /audio/transcriptions（Groq、faster-whisper-server 等均可）', cs.asrBaseUrl, 'https://api.example.com/v1')}
       ${inp('cpAsrModel', 'ASR 模型', '', cs.asrModel, 'whisper-1')}
       ${inp('cpAsrKey', 'ASR Key（可选）', '留空则复用上面的 API Key', cs.asrApiKey, '', 'password')}
-      <div class="note">角色立绘 / Spine / 3D 模型 / 世界书 / 人设，在 AI 窗口右上角「角色」里编辑。</div>
+      <div class="row">
+        <div><div class="t">语音识别语言</div><div class="d">自动 = Whisper 自动识别中文/英文/日文</div></div>
+        <select id="cpAsrLang" style="width:160px">
+          <option value="auto" ${(cs.asrLang || 'auto') === 'auto' ? 'selected' : ''}>自动（中/英/日）</option>
+          <option value="zh" ${cs.asrLang === 'zh' ? 'selected' : ''}>中文</option>
+          <option value="en" ${cs.asrLang === 'en' ? 'selected' : ''}>英文</option>
+          <option value="ja" ${cs.asrLang === 'ja' ? 'selected' : ''}>日文</option>
+        </select>
+      </div>
+      <div class="row">
+        <div><div class="t">AI 回复语言</div><div class="d">你用外语说话，AI 理解后用这个语言回复（即翻译）</div></div>
+        <select id="cpReplyLang" style="width:160px">
+          <option value="zh" ${(cs.replyLang || 'zh') === 'zh' ? 'selected' : ''}>中文</option>
+          <option value="en" ${cs.replyLang === 'en' ? 'selected' : ''}>English</option>
+          <option value="ja" ${cs.replyLang === 'ja' ? 'selected' : ''}>日本語</option>
+        </select>
+      </div>
+    </div>
+    <div class="card">
+      <h2>桌面角色</h2>
+      <div class="row">
+        <div><div class="t">在桌面显示角色</div><div class="d">把当前角色的立绘 / Spine / 3D 形象显示在桌面右下角（可拖动；VRM 可拖转视角、滚轮缩放）</div></div>
+        <label class="sw"><input type="checkbox" id="cpPetOn" ${cs.petOn !== false ? 'checked' : ''}><i></i></label>
+      </div>
+      <div class="note">角色立绘 / Spine / 3D 模型 / 世界书 / 人设 / 长期记忆，在 AI 窗口右上角「角色」里编辑。</div>
+      <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
+        <button class="btn sm" id="cpSave">保存全部设置</button>
+        <span id="cpSaveTip" style="color:#7bd88f;font-size:12px"></span>
+      </div>
     </div>
   `
   const gather = () => ({
@@ -768,6 +796,8 @@ async function renderCompanion () {
     apiKey: $('#cpApiKey').value.trim(),
     apiModel: $('#cpApiModel').value.trim(),
     visionOn: $('#cpVision') ? $('#cpVision').checked : true,
+    petOn: $('#cpPetOn') ? $('#cpPetOn').checked : true,
+    replyLang: $('#cpReplyLang').value,
     ttsMode: $('#cpTtsMode').value,
     ttsProvider: $('#cpTtsProvider').value,
     ttsBaseUrl: $('#cpTtsBase').value.trim(),
@@ -779,11 +809,17 @@ async function renderCompanion () {
     ttsPromptLang: $('#cpTtsPromptLang').value.trim() || 'zh',
     asrBaseUrl: $('#cpAsrBase').value.trim(),
     asrModel: $('#cpAsrModel').value.trim(),
+    asrLang: $('#cpAsrLang').value,
     asrApiKey: $('#cpAsrKey').value.trim()
   })
-  const save = async () => { await api.companionPatch(gather()) }
+  const save = async () => {
+    await api.companionPatch(gather())
+    const tip = $('#cpSaveTip')
+    if (tip) { tip.textContent = '✓ 已保存 ' + new Date().toLocaleTimeString('zh-CN', { hour12: false }); setTimeout(() => { tip.textContent = '' }, 3000) }
+  }
   // 每次重渲染 #main 的 innerHTML 都会重建，监听挂在具体输入上避免叠加
   $$('#main input, #main select').forEach((el) => { el.onchange = save })
+  $('#cpSave').onclick = save
   $('#cpFetchModels').onclick = async () => {
     await save()
     const btn = $('#cpFetchModels')

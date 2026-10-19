@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file: blob: aura:; img-src 'self' file: blob: data: aura:; media-src 'self' file: blob: aura:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header id="titlebar">
+      <div id="titleLeft">
+        <span id="charName">Aura</span>
+        <button id="btnChar" class="tb-btn" title="切换 / 编辑角色">角色</button>
+      </div>
+      <div id="titleRight">
+        <button id="btnMic" class="tb-btn" title="按住说话">🎙</button>
+        <button id="btnClear" class="tb-btn" title="清空对话">🧹</button>
+        <button id="btnPin" class="tb-btn" title="窗口置顶">📌</button>
+        <button id="btnMin" class="tb-btn" title="最小化">—</button>
+        <button id="btnClose" class="tb-btn" title="关闭">✕</button>
+      </div>
+    </header>
+
+    <div id="stage">
+      <!-- 形象区：立绘 / Spine canvas / three.js VRM 三选一 -->
+      <canvas id="vrmCanvas" hidden></canvas>
+      <canvas id="spineCanvas" hidden></canvas>
+      <img id="stillImg" alt="" hidden>
+      <div id="stageFallback" hidden>✦</div>
+    </div>
+
+    <div id="chat"></div>
+
+    <footer id="inputbar">
+      <textarea id="input" rows="1" placeholder="说点什么…（Enter 发送，Shift+Enter 换行）"></textarea>
+      <button id="btnSend" title="发送">➤</button>
+      <button id="btnStop" title="停止生成" hidden>■</button>
+    </footer>
+
+    <!-- 角色抽屉 -->
+    <aside id="charDrawer" hidden>
+      <div class="cd-head">
+        <select id="charSelect"></select>
+        <button id="btnCharNew" class="cd-btn">＋</button>
+        <button id="btnCharDel" class="cd-btn">删</button>
+        <button id="btnCharClose" class="cd-btn">✕</button>
+      </div>
+      <label>名字 <input id="fName"></label>
+      <label>人设（性格 / 说话风格 / 与你的关系，随便写）
+        <textarea id="fPersona" rows="6"></textarea>
+      </label>
+      <label>世界书条目（关键词命中才注入）
+        <div id="worldList"></div>
+        <button id="btnWorldAdd" class="cd-btn">＋ 加一条世界观</button>
+      </label>
+      <label>形象
+        <div class="seg" id="visMode">
+          <button data-m="still" class="on">立绘</button>
+          <button data-m="spine">Spine</button>
+          <button data-m="vrm">3D</button>
+        </div>
+        <button id="btnImport" class="cd-btn wide">导入形象文件…</button>
+        <div class="hint" id="visHint"></div>
+      </label>
+      <button id="btnCharSave" class="cd-save">保存角色</button>
+    </aside>
+  </div>
+  <script src="libs.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('aura', {
   setShape: (rects) => ipcRenderer.send('overlay:set-shape', rects),
   reportError: (kind, msg, stack) => ipcRenderer.send('overlay:renderer-error', kind, msg, stack),
   openSettings: () => ipcRenderer.send('overlay:open-settings'),
+  openCompanion: () => ipcRenderer.send('overlay:open-companion'),
   hide: () => ipcRenderer.send('overlay:hide'),
   quit: () => ipcRenderer.send('overlay:quit'),
   launch: (id) => ipcRenderer.invoke('overlay:launch', id),

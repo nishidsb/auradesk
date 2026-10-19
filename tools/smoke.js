@@ -71,7 +71,7 @@ setTimeout(async () => {
   const dock = d.getElementById('dock')
   check('侧边栏存在且贴一侧', !dock.hidden && dock.dataset.side === 'left', dock.dataset.side)
   const btns = d.querySelectorAll('#dock .dock-btn')
-  check('侧栏只有一侧，3 个按钮（库/设置/隐藏）', btns.length === 3, btns.length)
+  check('侧栏只有一侧，4 个按钮（库/伴侣/设置/隐藏）', btns.length === 4, btns.length)
   check('侧栏挂在左侧图标列里', dock.parentElement.id === 'iconsL', dock.parentElement.id)
   check('游戏库默认收起', d.getElementById('library').hidden)
   check('播放器标题', d.getElementById('pTitle').textContent === '夜に駆ける', d.getElementById('pTitle').textContent)

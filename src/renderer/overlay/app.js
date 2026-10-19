@@ -135,6 +135,7 @@ function renderDock () {
   if (hr) hr.hidden = dock.hidden
 
   $('dockLib').innerHTML = svg('list')
+  $('dockAura').innerHTML = svg('chat')
   $('dockLib').classList.toggle('is-active', libOpen)
   $('dockSet').innerHTML = svg('gear')
   $('dockHide').innerHTML = svg('eyeoff')
@@ -1485,6 +1486,7 @@ async function boot () {
   document.addEventListener('pointerdown', onRailDown, true)
 
   $('dockLib').addEventListener('click', openLib)
+  $('dockAura').addEventListener('click', () => window.aura.openCompanion())
   $('dockSet').addEventListener('click', () => window.aura.openSettings())
   $('dockHide').addEventListener('click', () => window.aura.hide())
 

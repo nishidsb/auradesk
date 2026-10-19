@@ -24,6 +24,7 @@ const lyrics = require('./lyrics')
 const icons = require('./icons')
 const taskbar = require('./launcher')
 const edgebar = require('./edgebar')
+const companion = require('./companion')
 const { log } = require('./logger')
 
 const CAPTURE = process.argv.includes('--capture')
@@ -632,6 +633,7 @@ function refreshTrayMenu () {
   const g = store.get().global
   const visible = [...overlayWins.values()].some((w) => !w.isDestroyed() && w.isVisible())
   tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'AI 伴侣…', click: () => companion.createWindow() },
     { label: '打开设置…', accelerator: g.hotkeySettings || undefined, click: () => openSettings() },
     { label: visible ? '隐藏桌面层' : '显示桌面层', accelerator: g.hotkeyToggle || undefined, click: toggleOverlays },
     { type: 'separator' },
@@ -700,17 +702,20 @@ app.whenReady().then(() => {
   log('[boot] 显示器: ' + JSON.stringify(screen.getAllDisplays().map((d) => ({ w: d.bounds.width, h: d.bounds.height, primary: d.id === screen.getPrimaryDisplay().id }))))
   migratePrimaryOnly()
   buildOverlays()
-  taskbar.registerIpc()
-  taskbar.setDeps({
-    broadcastAll: (ch, data) => {
-      for (const [, w] of overlayWins) {
-        if (!w.isDestroyed()) w.webContents.send(ch, data)
-      }
-      edgebar.send(ch, data)
+  /** 向所有覆盖层 + 边缘任务条广播（伴侣工具执行结果也要发给卡片刷新状态） */
+  const broadcastAll = (ch, data) => {
+    for (const [, w] of overlayWins) {
+      if (!w.isDestroyed()) w.webContents.send(ch, data)
     }
-  })
+    edgebar.send(ch, data)
+  }
+  taskbar.registerIpc()
+  taskbar.setDeps({ broadcastAll })
   taskbar.start()
   edgebar.registerIpc()
+  // AI 伴侣：IPC + 贾维斯工具集注入（复用 launcher 状态与卡片启动）
+  companion.registerIpc()
+  require('./companion/tools').init(taskbar, broadcastAll, launchGame)
   registerShortcuts()
   createTray()
   applyMusicSource()
@@ -865,6 +870,7 @@ ipcMain.on('overlay:renderer-error', (_e, kind, msg, stack) => {
 })
 
 ipcMain.on('overlay:open-settings', () => openSettings())
+ipcMain.on('overlay:open-companion', () => companion.createWindow())
 
 ipcMain.on('overlay:hide', () => {
   for (const [, w] of overlayWins) if (!w.isDestroyed()) w.hide()

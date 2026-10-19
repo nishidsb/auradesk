@@ -700,6 +700,87 @@ function renderGlobal () {
   })
 }
 
+/* --------------------------------------------------------- AI 伴侣 */
+
+async function renderCompanion () {
+  let cs = {}
+  try { cs = (await api.companionInit()).settings || {} } catch {}
+  const inp = (id, label, desc, val, ph, type) => `
+    <div class="row">
+      <div><div class="t">${label}</div>${desc ? `<div class="d">${desc}</div>` : ''}</div>
+      <input type="${type || 'text'}" id="${id}" value="${esc(val || '')}" placeholder="${esc(ph || '')}" style="width:300px">
+    </div>`
+  $('#main').innerHTML = `
+    <h1>AI 伴侣</h1>
+    <div class="sub">恋爱级 AI + 贾维斯式助手：聊天、执行桌面任务、语音对话。点 Dock 上的对话图标或托盘菜单打开。</div>
+    <div class="card">
+      <h2>AI 服务（OpenAI 兼容 API）</h2>
+      ${inp('cpApiBase', 'API 地址', 'OpenAI 兼容端点；本地模型如 Ollama 填 http://127.0.0.1:11434/v1', cs.apiBaseUrl, 'https://api.example.com/v1')}
+      ${inp('cpApiKey', 'API Key', '本地模型一般留空', cs.apiKey, 'sk-…', 'password')}
+      <div class="row">
+        <div><div class="t">模型</div><div class="d">可手动填写，或点「获取模型列表」自动拉取</div></div>
+        <div style="display:flex;gap:6px">
+          <input type="text" id="cpApiModel" value="${esc(cs.apiModel || '')}" placeholder="gpt-4o-mini / qwen2.5:7b" style="width:220px">
+          <button class="btn sm" id="cpFetchModels">获取模型列表</button>
+        </div>
+      </div>
+      <div class="note">配置好后 Dock 的 AI 伴侣就能聊天；它会用工具帮你看时间、切窗口、启动卡片里的程序、调音量。</div>
+    </div>
+    <div class="card">
+      <h2>语音合成（TTS · 朗读 AI 回复）</h2>
+      <div class="row">
+        <div><div class="t">合成方式</div><div class="d">API 模式需 OpenAI 兼容 /audio/speech 端点；系统语音免费但较机械</div></div>
+        <select id="cpTtsMode" style="width:160px">
+          <option value="browser" ${cs.ttsMode !== 'api' && cs.ttsMode !== 'off' ? 'selected' : ''}>系统语音</option>
+          <option value="api" ${cs.ttsMode === 'api' ? 'selected' : ''}>API 合成</option>
+          <option value="off" ${cs.ttsMode === 'off' ? 'selected' : ''}>关闭</option>
+        </select>
+      </div>
+      ${inp('cpTtsBase', 'TTS 地址（可选）', '留空则复用上面的 API 地址', cs.ttsBaseUrl, 'https://api.example.com/v1')}
+      ${inp('cpTtsModel', 'TTS 模型', '', cs.ttsModel, 'tts-1')}
+      ${inp('cpTtsKey', 'TTS Key（可选）', '留空则复用上面的 API Key', cs.ttsApiKey, '', 'password')}
+    </div>
+    <div class="card">
+      <h2>语音识别（ASR · 按住 🎙 说话）</h2>
+      ${inp('cpAsrBase', '识别端点', 'Whisper 兼容 /audio/transcriptions（Groq、faster-whisper-server 等均可）', cs.asrBaseUrl, 'https://api.example.com/v1')}
+      ${inp('cpAsrModel', 'ASR 模型', '', cs.asrModel, 'whisper-1')}
+      ${inp('cpAsrKey', 'ASR Key（可选）', '留空则复用上面的 API Key', cs.asrApiKey, '', 'password')}
+      <div class="note">角色立绘 / Spine / 3D 模型 / 世界书 / 人设，在 AI 伴侣窗口右上角「角色」里编辑。</div>
+    </div>
+  `
+  const gather = () => ({
+    apiBaseUrl: $('#cpApiBase').value.trim(),
+    apiKey: $('#cpApiKey').value.trim(),
+    apiModel: $('#cpApiModel').value.trim(),
+    ttsMode: $('#cpTtsMode').value,
+    ttsBaseUrl: $('#cpTtsBase').value.trim(),
+    ttsModel: $('#cpTtsModel').value.trim(),
+    ttsApiKey: $('#cpTtsKey').value.trim(),
+    asrBaseUrl: $('#cpAsrBase').value.trim(),
+    asrModel: $('#cpAsrModel').value.trim(),
+    asrApiKey: $('#cpAsrKey').value.trim()
+  })
+  const save = async () => { await api.companionPatch(gather()) }
+  // 每次重渲染 #main 的 innerHTML 都会重建，监听挂在具体输入上避免叠加
+  $$('#main input, #main select').forEach((el) => { el.onchange = save })
+  $('#cpFetchModels').onclick = async () => {
+    await save()
+    const btn = $('#cpFetchModels')
+    btn.textContent = '获取中…'
+    let models = []
+    try { models = await api.companionModels($('#cpApiBase').value.trim(), $('#cpApiKey').value.trim()) } catch {}
+    const sel = $('#cpApiModel')
+    if (Array.isArray(models) && models.length) {
+      const cur = sel.value
+      sel.innerHTML = models.map((m) => `<option value="${esc(m)}" ${m === cur ? 'selected' : ''}>${esc(m)}</option>`).join('')
+      btn.textContent = '已载入 ' + models.length + ' 个'
+    } else {
+      btn.textContent = '拉取失败（检查地址/网络）'
+    }
+    setTimeout(() => { btn.textContent = '获取模型列表' }, 2500)
+  }
+}
+
 /* ------------------------------------------------------------- 渲染 */
 
 function renderMain () {
@@ -707,6 +788,7 @@ function renderMain () {
   if (view.type === 'display') renderDisplay()
   else if (view.type === 'library') renderLibrary()
   else if (view.type === 'music') renderMusic()
+  else if (view.type === 'companion') renderCompanion()
   else renderGlobal()
 }
 

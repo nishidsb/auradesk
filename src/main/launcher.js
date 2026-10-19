@@ -300,5 +300,15 @@ module.exports = {
   registerIpc,
   start,
   stop,
-  setDeps (d) { deps = { ...deps, ...d } }
+  setDeps (d) { deps = { ...deps, ...d } },
+  // AI 伴侣工具集（companion/tools.js）需要的状态与动作
+  get latestWindows () { return latestWindows },
+  get latestApps () { return latestApps },
+  toggleByHandle (h) {
+    const n = Math.trunc(Number(h))
+    if (!Number.isFinite(n) || n <= 0 || n > 0x7fffffff) return false
+    helperCmd(`toggle ${n}`, 'toggle')
+    return true
+  },
+  helperCmdPublic (line) { helperCmd(line) }
 }

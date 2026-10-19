@@ -84,13 +84,21 @@ async function chatStream ({ baseUrl, apiKey, model, messages, temperature = 0.8
       let result
       try {
         const args = JSON.parse(c.arguments || '{}')
-        result = toolExec ? String(await toolExec(c.name, args)) : '工具不可用'
+        result = toolExec ? await toolExec(c.name, args) : '工具不可用'
       } catch (err) {
         result = '工具执行失败: ' + (err && err.message)
       }
-      log('[companion] 工具', c.name, '->', String(result).slice(0, 200))
-      toolResults.push({ name: c.name, result })
-      roundMessages.push({ role: 'tool', tool_call_id: c.id || 'call_' + round, content: String(result) })
+      // 工具返回 { text, image }（如 see_screen 截屏）→ 组装多模态 tool 消息
+      let toolContent = String(result)
+      if (result && typeof result === 'object' && result.image) {
+        toolContent = [
+          { type: 'text', text: result.text || '截图如下' },
+          { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + result.image } }
+        ]
+      }
+      log('[companion] 工具', c.name, '->', String(typeof result === 'object' ? result.text : result).slice(0, 200))
+      toolResults.push({ name: c.name, result: typeof result === 'object' ? (result.text || '') : String(result) })
+      roundMessages.push({ role: 'tool', tool_call_id: c.id || 'call_' + round, content: toolContent })
     }
   }
   return { content, toolResults }

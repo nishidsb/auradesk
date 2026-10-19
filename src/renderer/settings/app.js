@@ -724,21 +724,36 @@ async function renderCompanion () {
           <button class="btn sm" id="cpFetchModels">获取模型列表</button>
         </div>
       </div>
-      <div class="note">配置好后 Dock 的 AI 伴侣就能聊天；它会用工具帮你看时间、切窗口、启动卡片里的程序、调音量。</div>
+      <div class="row">
+        <div><div class="t">允许 AI 截屏看桌面</div><div class="d">开启后 AI 可以用「看屏幕」工具截取桌面画面来回答（需支持视觉的模型，如 gpt-4o / qwen-vl / glm-4v；纯文本模型会失败）</div></div>
+        <label class="sw"><input type="checkbox" id="cpVision" ${cs.visionOn !== false ? 'checked' : ''}><i></i></label>
+      </div>
+      <div class="note">配置好后 Dock 的 AI 伴侣就能聊天；它会用工具帮你看时间、切窗口、启动卡片里的程序、调音量，也能截屏看你的桌面。</div>
     </div>
     <div class="card">
       <h2>语音合成（TTS · 朗读 AI 回复）</h2>
       <div class="row">
-        <div><div class="t">合成方式</div><div class="d">API 模式需 OpenAI 兼容 /audio/speech 端点；系统语音免费但较机械</div></div>
+        <div><div class="t">合成方式</div><div class="d">系统语音免费但较机械；API 模式可接云端或本地引擎</div></div>
         <select id="cpTtsMode" style="width:160px">
           <option value="browser" ${cs.ttsMode !== 'api' && cs.ttsMode !== 'off' ? 'selected' : ''}>系统语音</option>
-          <option value="api" ${cs.ttsMode === 'api' ? 'selected' : ''}>API 合成</option>
+          <option value="api" ${cs.ttsMode === 'api' ? 'selected' : ''}>API / 本地引擎</option>
           <option value="off" ${cs.ttsMode === 'off' ? 'selected' : ''}>关闭</option>
         </select>
       </div>
-      ${inp('cpTtsBase', 'TTS 地址（可选）', '留空则复用上面的 API 地址', cs.ttsBaseUrl, 'https://api.example.com/v1')}
-      ${inp('cpTtsModel', 'TTS 模型', '', cs.ttsModel, 'tts-1')}
+      <div class="row">
+        <div><div class="t">引擎类型</div><div class="d">OpenAI 兼容：Fish Audio 云（api.fish.audio/v1，voice 填 reference_id）、本地 fish-speech / IndexTTS；GPT-SoVITS：本地 api_v2（默认端口 9880）</div></div>
+        <select id="cpTtsProvider" style="width:160px">
+          <option value="openai" ${(cs.ttsProvider || 'openai') === 'openai' ? 'selected' : ''}>OpenAI 兼容</option>
+          <option value="gptsovits" ${cs.ttsProvider === 'gptsovits' ? 'selected' : ''}>GPT-SoVITS</option>
+        </select>
+      </div>
+      ${inp('cpTtsBase', 'TTS 地址（可选）', '留空则复用上面的 API 地址；GPT-SoVITS 填 http://127.0.0.1:9880', cs.ttsBaseUrl, 'http://127.0.0.1:9880')}
+      ${inp('cpTtsModel', 'TTS 模型', 'OpenAI 兼容端点用；Fish Audio 填 s1', cs.ttsModel, 'tts-1')}
       ${inp('cpTtsKey', 'TTS Key（可选）', '留空则复用上面的 API Key', cs.ttsApiKey, '', 'password')}
+      ${inp('cpTtsRefAudio', '参考音频路径（GPT-SoVITS）', '服务端能访问到的 wav 路径，用于音色克隆', cs.ttsRefAudio, 'D:/tts/ref.wav')}
+      ${inp('cpTtsTextLang', '文本语言（GPT-SoVITS）', '', cs.ttsTextLang || 'zh', 'zh')}
+      ${inp('cpTtsPromptText', '参考音频文本（GPT-SoVITS）', '参考音频里说的话，提升克隆质量', cs.ttsPromptText, '')}
+      ${inp('cpTtsPromptLang', '参考音频语言（GPT-SoVITS）', '', cs.ttsPromptLang || 'zh', 'zh')}
     </div>
     <div class="card">
       <h2>语音识别（ASR · 按住 🎙 说话）</h2>
@@ -752,10 +767,16 @@ async function renderCompanion () {
     apiBaseUrl: $('#cpApiBase').value.trim(),
     apiKey: $('#cpApiKey').value.trim(),
     apiModel: $('#cpApiModel').value.trim(),
+    visionOn: $('#cpVision') ? $('#cpVision').checked : true,
     ttsMode: $('#cpTtsMode').value,
+    ttsProvider: $('#cpTtsProvider').value,
     ttsBaseUrl: $('#cpTtsBase').value.trim(),
     ttsModel: $('#cpTtsModel').value.trim(),
     ttsApiKey: $('#cpTtsKey').value.trim(),
+    ttsRefAudio: $('#cpTtsRefAudio').value.trim(),
+    ttsTextLang: $('#cpTtsTextLang').value.trim() || 'zh',
+    ttsPromptText: $('#cpTtsPromptText').value.trim(),
+    ttsPromptLang: $('#cpTtsPromptLang').value.trim() || 'zh',
     asrBaseUrl: $('#cpAsrBase').value.trim(),
     asrModel: $('#cpAsrModel').value.trim(),
     asrApiKey: $('#cpAsrKey').value.trim()

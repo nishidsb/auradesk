@@ -17,8 +17,8 @@ function init (launcherMod, broadcastAll, launchGameFn) {
   if (launchGameFn) deps.launchGame = launchGameFn
 }
 
-function defs () {
-  return [
+function defs (includeVision = true) {
+  const list = [
     {
       type: 'function',
       function: {
@@ -81,9 +81,25 @@ function defs () {
       }
     }
   ]
+  if (includeVision) {
+    list.push({
+      type: 'function',
+      function: {
+        name: 'see_screen',
+        description: '截取当前电脑屏幕画面。当用户问「你看到了什么 / 看看我的桌面 / 屏幕上是什么 / 帮我看看」等需要看屏幕的时候调用',
+        parameters: {
+          type: 'object',
+          properties: {
+            question: { type: 'string', description: '想从画面里确认什么（可选）' }
+          }
+        }
+      }
+    })
+  }
+  return list
 }
 
-function exec (name, args) {
+async function exec (name, args) {
   const g = store.get().global
   switch (name) {
     case 'get_time': {
@@ -128,6 +144,25 @@ function exec (name, args) {
       if (!/^https?:\/\//.test(u)) return '网址格式不对'
       require('electron').shell.openExternal(u)
       return '已打开 ' + u
+    }
+    case 'see_screen': {
+      // 返回对象（含 base64 图）由 llm.js 组装成多模态 tool 消息
+      try {
+        const { desktopCapturer, screen } = require('electron')
+        const primary = screen.getPrimaryDisplay()
+        const sources = await desktopCapturer.getSources({
+          types: ['screen'],
+          thumbnailSize: { width: 1600, height: Math.round(1600 * primary.size.height / Math.max(1, primary.size.width)) }
+        })
+        if (!sources.length) return '截屏失败：没有可用的屏幕'
+        const src = sources.find((s) => String(s.display_id) === String(primary.id)) || sources[0]
+        const img = src.thumbnail.toJPEG(85)
+        if (!img || img.length < 1024) return '截屏失败：画面为空'
+        log('[companion] see_screen 截屏', img.length, 'bytes')
+        return { text: '已截取屏幕（图片如下）', image: img.toString('base64') }
+      } catch (err) {
+        return '截屏失败：' + (err && err.message)
+      }
     }
     default:
       return '未知工具'

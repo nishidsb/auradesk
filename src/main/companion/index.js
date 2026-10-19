@@ -87,7 +87,7 @@ async function handleMessage (char, userText) {
   ]
 
   const seq = Date.now()
-  const toolDefs = [...memory.toolDefs(), ...tools.defs()]
+  const toolDefs = [...memory.toolDefs(), ...tools.defs(c.visionOn !== false)]
   const ctrl = new AbortController()
   genAbort = ctrl
   let full = ''
@@ -111,8 +111,10 @@ async function handleMessage (char, userText) {
     if (c.ttsMode === 'api' && full) {
       try {
         audio = await tts.speak({
+          provider: c.ttsProvider || 'openai',
           baseUrl: c.ttsBaseUrl || c.apiBaseUrl, apiKey: c.ttsApiKey || c.apiKey,
           model: c.ttsModel || 'tts-1', voice: (char.voice && char.voice.apiVoice) || 'alloy',
+          refAudio: c.ttsRefAudio, textLang: c.ttsTextLang, promptText: c.ttsPromptText, promptLang: c.ttsPromptLang,
           speed: 1, text: full
         })
       } catch (err) {
@@ -166,7 +168,10 @@ function registerIpc () {
       history: character.history(character.get().id),
       settings: {
         apiBaseUrl: c.apiBaseUrl || '', apiModel: c.apiModel || '', apiKey: c.apiKey || '',
-        ttsMode: c.ttsMode || 'browser', ttsBaseUrl: c.ttsBaseUrl || '', ttsModel: c.ttsModel || '', ttsApiKey: c.ttsApiKey || '',
+        visionOn: c.visionOn !== false,
+        ttsMode: c.ttsMode || 'browser', ttsProvider: c.ttsProvider || 'openai',
+        ttsBaseUrl: c.ttsBaseUrl || '', ttsModel: c.ttsModel || '', ttsApiKey: c.ttsApiKey || '',
+        ttsRefAudio: c.ttsRefAudio || '', ttsTextLang: c.ttsTextLang || 'zh', ttsPromptText: c.ttsPromptText || '', ttsPromptLang: c.ttsPromptLang || 'zh',
         asrBaseUrl: c.asrBaseUrl || '', asrModel: c.asrModel || 'whisper-1', asrApiKey: c.asrApiKey || ''
       }
     }
@@ -244,8 +249,10 @@ function registerIpc () {
     if (c.ttsMode !== 'api') return { fallback: true }
     try {
       const r = await tts.speak({
+        provider: c.ttsProvider || 'openai',
         baseUrl: c.ttsBaseUrl || c.apiBaseUrl, apiKey: c.ttsApiKey || c.apiKey,
         model: c.ttsModel || 'tts-1', voice: (character.get().voice && character.get().voice.apiVoice) || 'alloy',
+        refAudio: c.ttsRefAudio, textLang: c.ttsTextLang, promptText: c.ttsPromptText, promptLang: c.ttsPromptLang,
         speed: 1, text
       })
       return { ok: true, url: r.url }

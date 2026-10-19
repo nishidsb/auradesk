@@ -240,6 +240,29 @@ async function showSpine (v) {
   // spine-canvas 4.3 构造签名是 (pathPrefix, downloader)——没有 ctx 参数，
   // 之前把 ctx 传进去了，prefix 串被当成 downloader 导致 downloadText 报错
   const assetManager = new SPINE.AssetManager(atlasUrl.replace(/[^/]*$/, ''))
+  // 贴图页预转 dataURL：spine 用 Image+crossOrigin=anonymous 读贴图，
+  // 自定义协议下该请求的 CORS 校验比 fetch 严（实测 fetch 通、Image 被拦）；
+  // 先 fetch 把 atlas 引用的页面图转成 data: 塞进 downloader.rawDataUris，
+  // spine 加载贴图时直接用 dataURL，彻底绕开协议/CORS
+  try {
+    const atlasText = await (await fetch(atlasUrl)).text()
+    const prefix = atlasUrl.replace(/[^/]*$/, '')
+    const pages = [...new Set([...atlasText.matchAll(/([^\s"']+?\.(?:png|jpe?g|webp))/gi)].map((m) => m[1]))]
+    for (const name of pages) {
+      try {
+        const full = prefix + name
+        const blob = await (await fetch(full)).blob()
+        const dataUrl = await new Promise((ok, bad) => {
+          const r = new FileReader()
+          r.onload = () => ok(r.result)
+          r.onerror = () => bad(new Error('readAsDataURL 失败'))
+          r.readAsDataURL(blob)
+        })
+        assetManager.downloader.rawDataUris[full] = dataUrl
+        assetManager.downloader.rawDataUris[name] = dataUrl
+      } catch (e) { console.warn('[spine] 预载贴图失败', name, e.message) }
+    }
+  } catch (e) { console.warn('[spine] atlas 预读失败', e.message) }
   assetManager.loadTextureAtlas(basename(decodeURIComponent(atlasUrl)))
   const skelName = basename(decodeURIComponent(skelUrl))
   if (/\.json$/i.test(skelName)) assetManager.loadText(skelName)

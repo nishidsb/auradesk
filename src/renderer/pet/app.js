@@ -71,6 +71,26 @@ async function showSpine (v) {
   const ctx = canvas.getContext('2d')
   // spine-canvas 4.3 构造签名是 (pathPrefix, downloader)——没有 ctx 参数
   const assetManager = new SPINE.AssetManager(atlasUrl.replace(/[^/]*$/, ''))
+  // 贴图页预转 dataURL（绕开 Image+crossOrigin 对自定义协议的 CORS 拦截），同 companion 窗口
+  try {
+    const atlasText = await (await fetch(atlasUrl)).text()
+    const prefix = atlasUrl.replace(/[^/]*$/, '')
+    const pages = [...new Set([...atlasText.matchAll(/([^\s"']+?\.(?:png|jpe?g|webp))/gi)].map((m) => m[1]))]
+    for (const name of pages) {
+      try {
+        const full = prefix + name
+        const blob = await (await fetch(full)).blob()
+        const dataUrl = await new Promise((ok, bad) => {
+          const r = new FileReader()
+          r.onload = () => ok(r.result)
+          r.onerror = () => bad(new Error('readAsDataURL 失败'))
+          r.readAsDataURL(blob)
+        })
+        assetManager.downloader.rawDataUris[full] = dataUrl
+        assetManager.downloader.rawDataUris[name] = dataUrl
+      } catch (e) { console.warn('[pet spine] 预载贴图失败', name, e.message) }
+    }
+  } catch (e) { console.warn('[pet spine] atlas 预读失败', e.message) }
   assetManager.loadTextureAtlas(basename(decodeURIComponent(atlasUrl)))
   const skelName = basename(decodeURIComponent(skelUrl))
   if (/\.json$/i.test(skelName)) assetManager.loadText(skelName)

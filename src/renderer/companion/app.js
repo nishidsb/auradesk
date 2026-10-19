@@ -240,14 +240,15 @@ async function showSpine (v) {
     }
     poll()
   })
-  const atlas = assetManager.requireAtlas(basename(decodeURIComponent(atlasUrl)))
+  // 4.3 取数统一用 require(相对文件名)（内部自拼 pathPrefix），
+  // 老 API requireAtlas/requireText/requireBinary 已删除
+  const atlas = assetManager.require(basename(decodeURIComponent(atlasUrl)))
   let skeletonData
+  const skelData = assetManager.require(skelName)
   if (/\.json$/i.test(skelName)) {
-    const data = assetManager.requireText(skelName)
-    skeletonData = new SPINE.SkeletonJson(new SPINE.AtlasAttachmentLoader(atlas)).readSkeletonData(data)
+    skeletonData = new SPINE.SkeletonJson(new SPINE.AtlasAttachmentLoader(atlas)).readSkeletonData(skelData)
   } else {
-    const data = assetManager.requireBinary(skelName)
-    skeletonData = new SPINE.SkeletonBinary(new SPINE.AtlasAttachmentLoader(atlas)).readSkeletonData(data)
+    skeletonData = new SPINE.SkeletonBinary(new SPINE.AtlasAttachmentLoader(atlas)).readSkeletonData(skelData)
   }
   const skeleton = new SPINE.Skeleton(skeletonData)
   const state = new SPINE.AnimationState(skeletonData)

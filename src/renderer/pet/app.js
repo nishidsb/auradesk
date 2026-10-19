@@ -232,18 +232,16 @@ async function showSpine (v) {
       ctx.restore()
     }
   }
-  // 只启动一个 rAF 循环（多次加载不叠加循环，否则动画被重复 step 加速）；
-  // step 异常不中断循环，只记前几次
+  // 驱动用 setInterval 而非 rAF：窗口被判定遮挡时 rAF 的 BeginFrame 会被暂停
+  // （计时器不会），配合主进程禁用 CalculateNativeWinOcclusion 双保险
   if (!spineRafStarted) {
     spineRafStarted = true
     let errCount = 0
-    const loop = () => {
+    setInterval(() => {
       if (spineRuntime && spineRuntime.render) {
         try { spineRuntime.step() } catch (e) { if (++errCount <= 3) console.warn('[pet spine] step 异常:', e.message) }
       }
-      requestAnimationFrame(loop)
-    }
-    requestAnimationFrame(loop)
+    }, 16)
   }
 }
 

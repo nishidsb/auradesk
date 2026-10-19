@@ -690,6 +690,10 @@ function registerShortcuts () {
   refreshTrayMenu()
 }
 
+// Windows 原生遮挡计算会把置底/透明/穿透窗口判定为「被遮挡」而暂停其合成帧，
+// 桌宠等常驻透明窗口的 rAF/渲染会被冻结在第一帧。禁用该特性才能让画面持续刷新
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
+
 app.whenReady().then(() => {
   protocol.handle('aura', async (request) => {
     const u = new URL(request.url)

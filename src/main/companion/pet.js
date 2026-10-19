@@ -5,8 +5,9 @@
  * 可拖动、可关闭；角色保存/切换后自动刷新（notifyPet）。
  * 独立窗口不抢焦点、不进任务栏，普通层级（会被其他窗口盖住，像桌面的一部分）。
  */
-const { BrowserWindow, screen } = require('electron')
+const { BrowserWindow, screen, desktopCapturer, app } = require('electron')
 const path = require('node:path')
+const fs = require('node:fs')
 const store = require('../store')
 const { log } = require('../logger')
 
@@ -61,6 +62,23 @@ function createWindow () {
   // 定期强制全量重绘保证画面持续刷新
   setInterval(() => { try { if (win && !win.isDestroyed()) wc.invalidate() } catch {} }, 40)
   win.on('closed', () => { win = null })
+  // 屏幕级取证：capturePage（窗口渲染结果）+ desktopCapturer（真实屏幕）各拍两帧，
+  // 判定「位图动/屏幕不动」卡在哪一层
+  setTimeout(async () => {
+    const shot = async (tag, i) => {
+      try {
+        if (!win || win.isDestroyed()) return
+        const img = await win.webContents.capturePage()
+        fs.writeFileSync(path.join(app.getPath('userData'), 'logs', 'win-pet-' + i + '.png'), img.toPNG())
+        const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 2560, height: 1440 } })
+        const s = sources[0]
+        if (s) fs.writeFileSync(path.join(app.getPath('userData'), 'logs', 'screen-' + i + '.png'), s.thumbnail.toPNG())
+        log('[pet] 取证 ' + tag + ' 完成 (win/screen-' + i + '.png)')
+      } catch (e) { log('[pet] 取证失败:', e && e.message) }
+    }
+    await shot('t1', 1)
+    setTimeout(() => shot('t2', 2), 2000)
+  }, 6000)
   log('[pet] 桌面角色窗口已创建')
 }
 

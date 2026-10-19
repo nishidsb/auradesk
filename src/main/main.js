@@ -691,10 +691,15 @@ function registerShortcuts () {
 }
 
 app.whenReady().then(() => {
-  protocol.handle('aura', (request) => {
+  protocol.handle('aura', async (request) => {
     const u = new URL(request.url)
     const abs = decodeURIComponent(u.pathname.replace(/^\//, ''))
-    return net.fetch(pathToFileURL(abs).toString())
+    const res = await net.fetch(pathToFileURL(abs).toString())
+    // spine 贴图走 Image + crossOrigin=anonymous，Chromium 要求 CORS 头，否则 Couldn't load image
+    const headers = new Headers({ 'access-control-allow-origin': '*' })
+    const ct = res.headers.get('content-type')
+    if (ct) headers.set('content-type', ct)
+    return new Response(res.body, { status: res.status, statusText: res.statusText, headers })
   })
 
   if (CAPTURE) return runCapture()

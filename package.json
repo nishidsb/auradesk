@@ -72,6 +72,9 @@
     "@esotericsoftware/spine-canvas": "^4.3.13",
     "@pixiv/three-vrm": "^3.5.5",
     "music-metadata": "^7.14.0",
+    "spine-canvas-40": "npm:@esotericsoftware/spine-canvas@^4.0.31",
+    "spine-canvas-41": "npm:@esotericsoftware/spine-canvas@^4.1.56",
+    "spine-canvas-42": "npm:@esotericsoftware/spine-canvas@^4.2.120",
     "three": "^0.186.1"
   }
 }

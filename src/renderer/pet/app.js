@@ -39,13 +39,31 @@ async function showVisual (char) {
 }
 
 /* ---------------- Spine ---------------- */
+/* 读骨架文件头部版本号（二进制 .skel 在前 8 字节 hash 后跟 "4.2.43"；
+   .json 在 "spine":"4.2.43" 字段），返回 "4.2" 这样的主次版本 */
+async function detectSpineVersion (skelUrl) {
+  try {
+    const res = await fetch(skelUrl)
+    const buf = new Uint8Array(await res.arrayBuffer())
+    let s = ''
+    for (let i = 0; i < Math.min(buf.length, 160); i++) s += String.fromCharCode(buf[i])
+    const m = s.match(/(\d+)\.(\d+)\.\d+/)
+    return m ? m[1] + '.' + m[2] : null
+  } catch { return null }
+}
+
 async function showSpine (v) {
-  const { SPINE } = window.AuraLibs
+  const libs = window.AuraLibs
   if (!v.spine || !v.spine.atlas || !v.spine.skel) { $('stageFallback').hidden = false; return }
   const atlasUrl = await assetUrl(v.spine.atlas)
   const skelUrl = await assetUrl(v.spine.skel)
   if (spineRuntime && spineRuntime.sig === atlasUrl + skelUrl) return
   disposeSpine()
+  // Spine 运行时严格锁版本（4.3 读不了 4.2 导出的骨架，报 Bone name must not be null），
+  // 从骨架文件头部扫版本号，选对应运行时；识别不出就用最新 4.3 兜底
+  const ver = await detectSpineVersion(skelUrl)
+  const SPINE = (libs.AuraSpine && ver && libs.AuraSpine[ver]) || libs.SPINE
+  console.warn('[pet spine] 骨架版本', ver || '未知', '→ 运行时', SPINE === libs.SPINE ? '4.3（兜底）' : ver)
   const canvas = $('spineCanvas')
   const scale = window.devicePixelRatio || 1
   canvas.width = canvas.clientWidth * scale
@@ -92,7 +110,7 @@ async function showSpine (v) {
     step () {
       const dt = 1 / 60
       state.update(dt)
-      skeleton.updateWorldTransform(SPINE.Physics.update)
+      skeleton.updateWorldTransform(SPINE.Physics ? SPINE.Physics.update : undefined)
       ctx.clearRect(0, 0, canvas.width, canvas.height)
       const offset = new SPINE.Vector2()
       const size = new SPINE.Vector2()

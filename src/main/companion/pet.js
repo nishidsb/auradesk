@@ -45,7 +45,11 @@ function createWindow () {
       backgroundThrottling: false
     }
   })
-  win.setAlwaysOnTop(false)
+  // 必须悬浮：pet 窗口被全屏透明桌面层(overlay)整个覆盖时，Windows 遮挡判定
+  // 不看透明度，直接判「被完全遮挡」→ Chromium 停掉该窗口的合成器
+  // （实测 capturePage 永远冻结在第 1 帧，canvas 位图在动也上不了屏）。
+  // floating 层级让 pet 永远可见，桌宠置顶是常规做法
+  win.setAlwaysOnTop(true, 'floating')
   win.loadFile(path.join(__dirname, '../../renderer/pet/index.html'))
   const wc = win.webContents
   wc.on('did-fail-load', (_e, code, desc, url) => log('[pet] 加载失败', code, desc, url))

@@ -120,7 +120,7 @@ body.open #bar { transform: translateY(0); }
   position: absolute; top: 6px; right: 6px;
   width: 7px; height: 7px; border-radius: 50%;
 }
-.ecard.fg .badge { background: #5ad282; box-shadow: 0 0 7px rgba(90, 210, 130, .9); }
+.ecard.fg .badge { background: #5ad282; }
 .ecard.min .badge { background: #6b7180; }
 
 /* 切换失败等提示 */

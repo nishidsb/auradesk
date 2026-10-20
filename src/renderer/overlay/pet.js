@@ -1,4 +1,5 @@
 'use strict'
+;(function () {
 /* 桌宠 · overlay 内嵌渲染
  * 独立透明 BrowserWindow 在本机被 Chromium 挂起合成器（画面冻结在第 1 帧，
  * 所有开关均无效），而桌面层 overlay 窗口合成正常——所以角色直接渲染在这里。
@@ -253,3 +254,4 @@ async function showVrm (v) {
     window.companion.onPetRefresh(async ({ char }) => { if (char) await showVisual(char) })
   }
 })().catch((err) => { console.error('[pet-ov boot]', err); $('petFallback').hidden = false })
+})()

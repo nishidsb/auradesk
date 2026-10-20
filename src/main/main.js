@@ -735,6 +735,7 @@ app.whenReady().then(() => {
   petMod.setBroadcast((ch, data) => {
     for (const [, w] of overlayWins) if (!w.isDestroyed()) w.webContents.send(ch, data)
   })
+  petMod.boot()
   companion.bootPet()
   registerShortcuts()
   createTray()
@@ -754,7 +755,10 @@ app.whenReady().then(() => {
   setTimeout(() => autoFillCovers(), 4000)
   // 本地程序的图标更快也更便宜（纯本地 shell 调用），先补图标再补封面
   setTimeout(() => autoFillIcons(), 1200)
-})
+  }).catch((err) => {
+    // whenReady 流程里任何一步抛异常都必须留痕——否则整个桌面层静默消失
+    log('[boot] 启动流程异常:', err && (err.stack || err.message))
+  })
 
 /* ---- 开机白屏治理 ----
    开机自启动时 GPU 进程经常还没就绪甚至先崩一次，透明窗口一旦在

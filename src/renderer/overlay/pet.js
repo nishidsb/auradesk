@@ -89,15 +89,25 @@ async function showSpine (v) {
   currentSig = sig
   disposeSpine()
   const ver = await detectSpineVersion(skelUrl)
-  const SPINE = (libs.AuraSpine && ver && libs.AuraSpine[ver]) || libs.SPINE
-  patchSpineSeam(SPINE)
-  console.warn('[pet-ov] 骨架版本', ver || '未知', '→ 运行时', SPINE === libs.SPINE ? '4.3（兜底）' : ver)
+  // 优先 WebGL 运行时（GPU 画 mesh，无逐三角形裁剪开销）；没有对应版本再退 canvas
+  const GL = libs.AuraSpineGL && ver && libs.AuraSpineGL[ver]
+  const SPINE = GL || (libs.AuraSpine && ver && libs.AuraSpine[ver]) || libs.SPINE
+  if (!GL) patchSpineSeam(SPINE)
+  console.warn('[pet-ov] 骨架版本', ver || '未知', '→ 运行时', GL ? 'webgl ' + ver : (SPINE === libs.SPINE ? '4.3 canvas（兜底）' : ver + ' canvas'))
   const canvas = $('petSpineCanvas')
   const scale = window.devicePixelRatio || 1
   canvas.width = canvas.clientWidth * scale
   canvas.height = canvas.clientHeight * scale
-  const ctx = canvas.getContext('2d')
-  const assetManager = new SPINE.AssetManager(atlasUrl.replace(/[^/]*$/, ''))
+  let ctx = null
+  let managedGl = null
+  let assetManager
+  if (GL) {
+    managedGl = new GL.ManagedWebGLRenderingContext(canvas, { alpha: true, premultipliedAlpha: false, antialias: true })
+    assetManager = new GL.AssetManager(managedGl, atlasUrl.replace(/[^/]*$/, ''))
+  } else {
+    ctx = canvas.getContext('2d', { willReadFrequently: false })
+    assetManager = new SPINE.AssetManager(atlasUrl.replace(/[^/]*$/, ''))
+  }
   // 贴图页预转 dataURL（绕开 Image+crossOrigin 对自定义协议的 CORS 拦截），失败走主进程兜底
   try {
     const atlasText = await (await fetch(atlasUrl)).text()
@@ -174,28 +184,64 @@ async function showSpine (v) {
     || anims[0]
   console.warn('[pet-ov] 加载成功 → 播放', idle && idle.name)
   if (idle) state.setAnimation(0, idle.name, true)
-  spineRuntime = {
-    sig,
-    render: true,
-    step () {
-      const dt = 1 / 60
-      state.update(dt)
-      skeleton.updateWorldTransform(SPINE.Physics ? SPINE.Physics.update : undefined)
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      const offset = new SPINE.Vector2()
-      const size = new SPINE.Vector2()
-      skeleton.getBounds(offset, size, [])
-      const s = Math.min(canvas.width / (size.x || 1), canvas.height / (size.y || 1)) * 0.95
-      ctx.save()
-      // spine 世界坐标 y 向上、canvas y 向下：必须翻转 y 并把 bounds 底边对到画布底
-      ctx.translate((canvas.width - size.x * s) / 2 - offset.x * s, canvas.height - 6 + offset.y * s)
-      ctx.scale(s, -s)
-      const renderer = new SPINE.SkeletonRenderer(ctx)
-      // 默认 drawImages 只画 Region 四边形、跳过 Mesh → 必须 triangleRendering
-      renderer.triangleRendering = true
-      renderer.__scale = s
-      renderer.draw(skeleton)
-      ctx.restore()
+  // WebGL 路径：GPU 画 mesh，30fps 足够流畅且几乎不占主线程
+  if (GL) {
+    const sceneRenderer = new GL.SceneRenderer(canvas, managedGl)
+    const gl = managedGl.gl
+    let boundsFrame = 0
+    const offset = new SPINE.Vector2()
+    const size = new SPINE.Vector2()
+    spineRuntime = {
+      sig,
+      render: true,
+      step () {
+        const dt = 1 / 60
+        state.update(dt)
+        skeleton.updateWorldTransform(SPINE.Physics ? SPINE.Physics.update : undefined)
+        gl.clearColor(0, 0, 0, 0)
+        gl.clear(gl.COLOR_BUFFER_BIT)
+        // 相机适配骨架包围盒（每 20 帧重算一次，bounds 计算不便宜）
+        if (boundsFrame++ % 20 === 0) {
+          skeleton.getBounds(offset, size, [])
+          const bw = size.x || 1
+          const bh = size.y || 1
+          const cam = sceneRenderer.camera
+          cam.setViewport(canvas.width, canvas.height)
+          cam.position.set(offset.x + bw / 2, offset.y + bh / 2, 0)
+          let zoom = Math.max(bw / canvas.width, bh / canvas.height) / 0.95
+          if (!isFinite(zoom) || zoom <= 0) zoom = 1
+          cam.zoom = zoom
+        }
+        sceneRenderer.begin()
+        sceneRenderer.drawSkeleton(skeleton, false)
+        sceneRenderer.end()
+      }
+    }
+  } else {
+    // canvas 兜底路径（仅 4.0/4.1 皮肤）
+    spineRuntime = {
+      sig,
+      render: true,
+      step () {
+        const dt = 1 / 60
+        state.update(dt)
+        skeleton.updateWorldTransform(SPINE.Physics ? SPINE.Physics.update : undefined)
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+        const offset = new SPINE.Vector2()
+        const size = new SPINE.Vector2()
+        skeleton.getBounds(offset, size, [])
+        const s = Math.min(canvas.width / (size.x || 1), canvas.height / (size.y || 1)) * 0.95
+        ctx.save()
+        // spine 世界坐标 y 向上、canvas y 向下：必须翻转 y 并把 bounds 底边对到画布底
+        ctx.translate((canvas.width - size.x * s) / 2 - offset.x * s, canvas.height - 6 + offset.y * s)
+        ctx.scale(s, -s)
+        const renderer = new SPINE.SkeletonRenderer(ctx)
+        // 默认 drawImages 只画 Region 四边形、跳过 Mesh → 必须 triangleRendering
+        renderer.triangleRendering = true
+        renderer.__scale = s
+        renderer.draw(skeleton)
+        ctx.restore()
+      }
     }
   }
   // 用 setInterval 驱动（rAF 的 BeginFrame 可能被窗口可见性调度暂停）
@@ -206,7 +252,7 @@ async function showSpine (v) {
       if (spineRuntime && spineRuntime.render) {
         try { spineRuntime.step() } catch (e) { if (++errCount <= 3) console.warn('[pet-ov] step 异常:', e.message) }
       }
-    }, 16)
+    }, 33)
   }
 }
 

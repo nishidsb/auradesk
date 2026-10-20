@@ -1011,7 +1011,7 @@ body.lowfx .lib-glow { display: none; }
   bottom: 6.4rem;
   width: 300px;
   height: 520px;
-  z-index: 4;
+  z-index: 6;
   pointer-events: none;
   overflow: hidden;
 }

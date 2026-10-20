@@ -1,6 +1,6 @@
 {
   "name": "auradesk",
-  "version": "0.3.22",
+  "version": "0.3.23",
   "description": "AuraDesk - 多屏桌面覆盖层启动器（壁纸 + 游戏库 + 播放器 + 任务栏 + AI 伴侣）",
   "main": "src/main/main.js",
   "scripts": {
@@ -70,11 +70,13 @@
   },
   "dependencies": {
     "@esotericsoftware/spine-canvas": "^4.3.13",
+    "@esotericsoftware/spine-webgl": "^4.3.13",
     "@pixiv/three-vrm": "^3.5.5",
     "music-metadata": "^7.14.0",
     "spine-canvas-40": "npm:@esotericsoftware/spine-canvas@^4.0.31",
     "spine-canvas-41": "npm:@esotericsoftware/spine-canvas@^4.1.56",
     "spine-canvas-42": "npm:@esotericsoftware/spine-canvas@^4.2.120",
+    "spine-webgl-42": "npm:@esotericsoftware/spine-webgl@^4.2.120",
     "three": "^0.186.1"
   }
 }

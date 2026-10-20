@@ -9,11 +9,15 @@ import * as SPINE43 from '@esotericsoftware/spine-canvas'
 import * as SPINE42 from 'spine-canvas-42'
 import * as SPINE41 from 'spine-canvas-41'
 import * as SPINE40 from 'spine-canvas-40'
+import * as SPINEGL43 from '@esotericsoftware/spine-webgl'
+import * as SPINEGL42 from 'spine-webgl-42'
 
 window.AuraLibs = {
   THREE,
   GLTFLoader,
   THREEVRM,
   SPINE: SPINE43,
-  AuraSpine: { '4.3': SPINE43, '4.2': SPINE42, '4.1': SPINE41, '4.0': SPINE40 }
+  AuraSpine: { '4.3': SPINE43, '4.2': SPINE42, '4.1': SPINE41, '4.0': SPINE40 },
+  // WebGL 渲染（GPU 画 mesh）：mesh 重的皮肤用 canvas 逐三角形画太慢（卡顿+像静止）
+  AuraSpineGL: { '4.3': SPINEGL43, '4.2': SPINEGL42 }
 }

@@ -696,9 +696,8 @@ app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
 // 同类问题第二层：窗口被判遮挡后 renderer 会整体被挂起（上屏停住）。
 // 实测 renderer 在产帧（canvas 位图在变）但屏幕不动，必须再禁掉这个
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
-// 第三层：透明窗口 + GPU 合成在某些显卡驱动上会把窗口合成器挂起
-// （遮挡判定解除后 capturePage 仍冻结）。强制软件合成绕开整个 GPU 合成栈
-app.commandLine.appendSwitch('disable-gpu-compositing')
+// 注意：不要加 disable-gpu-compositing——软件合成会把透明窗口底色变灰
+// （0.3.20 实测翻车）。桌宠已改为渲染进 overlay 窗口，不再依赖独立透明小窗口
 
 app.whenReady().then(() => {
   protocol.handle('aura', async (request) => {
@@ -731,6 +730,11 @@ app.whenReady().then(() => {
   // AI 伴侣：IPC + 贾维斯工具集注入（复用 launcher 状态与卡片启动）
   companion.registerIpc()
   require('./companion/tools').init(taskbar, broadcastAll, launchGame)
+  // 桌宠（overlay 内嵌版）：注入向 overlay 广播的通道，再启动拉初始角色
+  const petMod = require('./companion/pet')
+  petMod.setBroadcast((ch, data) => {
+    for (const [, w] of overlayWins) if (!w.isDestroyed()) w.webContents.send(ch, data)
+  })
   companion.bootPet()
   registerShortcuts()
   createTray()

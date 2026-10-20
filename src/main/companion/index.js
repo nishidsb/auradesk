@@ -394,6 +394,7 @@ function stop () {
 /** 开机按配置拉起桌面角色（默认开） */
 function bootPet () {
   const g = store.get()
+  pet.refresh(character.get())
   if (!g.global.companion || g.global.companion.petOn !== false) pet.show()
 }
 

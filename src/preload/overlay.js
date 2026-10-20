@@ -33,5 +33,11 @@ contextBridge.exposeInMainWorld('aura', {
   audioDevs: () => ipcRenderer.invoke('overlay:audio-devs'),
   setDev: (flow, id) => ipcRenderer.send('overlay:set-dev', flow, id),
   onDevs: (cb) => ipcRenderer.on('overlay:audio-devs', (_e, s) => cb(s)),
-  showDesktop: () => ipcRenderer.send('overlay:show-desktop')
+  showDesktop: () => ipcRenderer.send('overlay:show-desktop'),
+  // ---- 桌宠（overlay 内嵌渲染）：角色状态 + 资产加载 ----
+  petState: () => ipcRenderer.invoke('pet:state'),
+  petGetChar: () => ipcRenderer.invoke('pet:get-char'),
+  assetUrl: (p) => ipcRenderer.invoke('companion:asset-url', p),
+  assetData: (p) => ipcRenderer.invoke('companion:asset-data', p),
+  onPetState: (cb) => ipcRenderer.on('pet:state', (_e, s) => cb(s))
 })

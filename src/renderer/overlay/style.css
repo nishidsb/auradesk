@@ -1000,3 +1000,35 @@ body.lowfx .tile,
 body.lowfx .tile-art,
 body.lowfx .lib-glow { animation: none !important; transition: none !important; filter: none; }
 body.lowfx .lib-glow { display: none; }
+
+/* --------------------------------------------------------- 桌宠（overlay 内嵌） */
+
+/* 渲染在桌面层窗口内的桌面角色：右下角、纯观赏不拦截鼠标；
+   独立透明窗口在本机合成器被挂起，所以搬进合成正常的 overlay */
+.petstage {
+  position: absolute;
+  right: 1.6rem;
+  bottom: 6.4rem;
+  width: 300px;
+  height: 520px;
+  z-index: 4;
+  pointer-events: none;
+  overflow: hidden;
+}
+.petstage canvas,
+.petstage img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.petstage-fallback {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  font-size: 42px;
+  color: #8f7bff;
+  text-shadow: 0 0 18px rgba(143, 123, 255, .55);
+}

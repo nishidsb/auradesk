@@ -27,11 +27,20 @@ function trimChat () {
 
 function renderHistory () {
   $('chat').innerHTML = ''
-  for (const m of S.history.slice(-60)) addMsg(m.role === 'user' ? 'user' : 'ai', m.content)
+  for (const m of S.history.slice(-60)) {
+    const txt = m.content + (m.role !== 'user' && m.sub && m.sub !== m.content ? '\n' + m.sub : '')
+    addMsg(m.role === 'user' ? 'user' : 'ai', txt)
+  }
 }
 
 /* ---------------- 流式回复 ---------------- */
-window.companion.onDelta(({ text }) => {
+let lastDeltaSeq = null
+window.companion.onDelta(({ seq, text }) => {
+  // seq 变化 = 新一轮生成（语言守卫纠正会重生成一次）→ 丢弃上一轮的半截气泡重新开始
+  if (seq !== lastDeltaSeq) {
+    lastDeltaSeq = seq
+    if (pendingAi) { pendingAi.remove(); pendingAi = null }
+  }
   if (!pendingAi) { pendingAi = addMsg('ai', '', 'ai typing'); pendingAi.dataset.buf = '' }
   pendingAi.dataset.buf += text
   pendingAi.textContent = pendingAi.dataset.buf
@@ -45,6 +54,11 @@ window.companion.onDone(async ({ content, tools: toolCalls, audio }) => {
   document.body.id = ''
   if (pendingAi) {
     pendingAi.classList.remove('typing')
+    // 字幕模式：流式期间显示的是台词原文，完成后替换为译文（content）
+    if (content != null && pendingAi.dataset.buf !== content) {
+      pendingAi.dataset.buf = content
+      pendingAi.textContent = content
+    }
     if (toolCalls && toolCalls.length) {
       const t = document.createElement('div')
       t.className = 'tools'
@@ -100,6 +114,12 @@ async function sendText () {
   if (!v || generating) return
   $('input').value = ''
   $('input').style.height = 'auto'
+  // 发送新消息即打断正在播的语音（对齐参考 _cancelSpeechPlayback）
+  try {
+    if (curAudio) { curAudio.pause(); curAudio = null }
+    document.body.id = ''
+    if (window.speechSynthesis) speechSynthesis.cancel()
+  } catch {}
   addMsg('user', v)
   generating = true
   pendingAi = null
@@ -165,12 +185,20 @@ function speakBrowser (text) {
   try {
     speechSynthesis.cancel()
     const u = new SpeechSynthesisUtterance(text.slice(0, 400))
-    u.lang = 'zh-CN'
     const v = char && char.voice ? char.voice : {}
     u.pitch = v.pitch != null ? v.pitch : 1
     u.rate = v.rate != null ? v.rate : 1
-    const zh = speechSynthesis.getVoices().find((x) => /zh|Chinese/i.test(x.lang))
-    if (zh) u.voice = zh
+    // 朗读音色与回复语言解耦：设置里选了具体音色（任意语种）就用它，
+    // 没选则按回复语言挑系统语音，最后兜底中文
+    const rl = (S.settings && S.settings.replyLang) || 'zh'
+    const langTag = { zh: 'zh', ja: 'ja', en: 'en' }[rl] || 'zh'
+    const voices = speechSynthesis.getVoices()
+    const want = S.settings && S.settings.sysVoiceName
+    const picked = (want && voices.find((x) => x.name === want)) ||
+      voices.find((x) => x.lang && String(x.lang).toLowerCase().startsWith(langTag)) ||
+      voices.find((x) => /zh|Chinese/i.test(x.lang))
+    if (picked) u.voice = picked
+    u.lang = picked ? picked.lang : ({ zh: 'zh-CN', ja: 'ja-JP', en: 'en-US' }[rl] || 'zh-CN')
     document.body.id = 'speaking'
     u.onend = () => { document.body.id = '' }
     speechSynthesis.speak(u)
@@ -511,17 +539,26 @@ async function renderCpSettings () {
   $('cpApiModel').value = cs.apiModel || ''
   $('cpVision').checked = cs.visionOn !== false
   $('cpPetOn').checked = cs.petOn !== false
+  $('cpPetScale').value = Math.round((cs.petScale != null ? cs.petScale : 1) * 100)
+  $('cpPetScaleV').textContent = ($('cpPetScale').value / 100).toFixed(1) + '×'
   $('cpReplyLang').value = cs.replyLang || 'zh'
+  $('cpSubLang').value = cs.subLang || 'off'
   $('cpTtsMode').value = cs.ttsMode || 'browser'
   $('cpTtsProvider').value = cs.ttsProvider || 'openai'
   $('cpTtsBase').value = cs.ttsBaseUrl || ''
   $('cpTtsModel').value = cs.ttsModel || ''
   $('cpTtsKey').value = cs.ttsApiKey || ''
+  $('cpTtsVoice').value = cs.ttsVoice || 'alloy'
+  fillSysVoices()
+  $('cpSysVoice').value = cs.sysVoiceName || ''
   $('cpTtsRefAudio').value = cs.ttsRefAudio || ''
   $('cpTtsPromptText').value = cs.ttsPromptText || ''
   $('cpFishBase').value = cs.fishBaseUrl || 'https://api.fish.audio/v1/tts'
   $('cpFishModel').value = cs.fishModel || 's2.1-pro-free'
   $('cpFishVoice').value = cs.fishVoiceId || ''
+  $('cpFishKey').value = cs.fishApiKey || ''
+  $('cpNetProxy').value = cs.netProxy || ''
+  $('cpFishKey').value = cs.fishApiKey || ''
   $('cpFishAsmr').value = cs.fishAsmrVoiceId || ''
   $('cpFishFormat').value = cs.fishFormat || 'wav'
   $('cpFishLatency').value = cs.fishLatency || 'normal'
@@ -530,6 +567,7 @@ async function renderCpSettings () {
   $('cpSpeed').value = Math.round((cs.ttsSpeed || 1) * 100)
   syncFishLabels()
   syncFishVisible()
+  syncSysVoiceRow()
   $('cpAsrBase').value = cs.asrBaseUrl || ''
   $('cpAsrModel').value = cs.asrModel || 'whisper-1'
   $('cpAsrKey').value = cs.asrApiKey || ''
@@ -545,8 +583,29 @@ function syncFishVisible () {
   const p = $('cpTtsProvider').value
   $('cpFish').hidden = p !== 'fish'
   $('cpTtsBase').hidden = p !== 'openai'
+  $('cpTtsVoice').hidden = p !== 'openai'
   $('cpTtsRefAudio').hidden = p !== 'gptsovits'
   $('cpTtsPromptText').hidden = p !== 'gptsovits'
+}
+/** 系统语音音色只在「系统语音」模式下显示 */
+function syncSysVoiceRow () {
+  const row = $('cpSysVoiceRow')
+  if (row) row.hidden = $('cpTtsMode').value !== 'browser'
+}
+/** 枚举本机全部系统语音（中日英法…都有），音色可与回复语言不同 */
+function fillSysVoices () {
+  const sel = $('cpSysVoice')
+  if (!sel || !window.speechSynthesis) return
+  const list = speechSynthesis.getVoices()
+  if (!list.length) return
+  const cur = sel.value
+  sel.innerHTML = '<option value="">自动（跟随回复语言）</option>' +
+    list.map((v) => '<option value="' + String(v.name).replace(/"/g, '&quot;') + '">' + v.name + '（' + v.lang + '）</option>').join('')
+  sel.value = cur || ''
+}
+if (window.speechSynthesis) {
+  speechSynthesis.onvoiceschanged = fillSysVoices
+  setTimeout(fillSysVoices, 300)
 }
 const cpGather = () => ({
   apiBaseUrl: $('cpApiBase').value.trim(),
@@ -554,16 +613,22 @@ const cpGather = () => ({
   apiModel: $('cpApiModel').value.trim(),
   visionOn: $('cpVision').checked,
   petOn: $('cpPetOn').checked,
+  petScale: Number($('cpPetScale').value) / 100,
   replyLang: $('cpReplyLang').value,
+  subLang: $('cpSubLang').value,
   ttsMode: $('cpTtsMode').value,
   ttsProvider: $('cpTtsProvider').value,
   ttsBaseUrl: $('cpTtsBase').value.trim(),
   ttsModel: $('cpTtsModel').value.trim(),
   ttsApiKey: $('cpTtsKey').value.trim(),
+  ttsVoice: $('cpTtsVoice').value,
+  sysVoiceName: $('cpSysVoice').value,
   ttsRefAudio: $('cpTtsRefAudio').value.trim(),
   ttsPromptText: $('cpTtsPromptText').value.trim(),
   ttsSpeed: $('cpSpeed').value / 100,
   fishBaseUrl: $('cpFishBase').value.trim() || 'https://api.fish.audio/v1/tts',
+  fishApiKey: $('cpFishKey').value.trim(),
+  netProxy: $('cpNetProxy').value.trim(),
   fishModel: $('cpFishModel').value.trim() || 's2.1-pro-free',
   fishVoiceId: $('cpFishVoice').value.trim(),
   fishAsmrVoiceId: $('cpFishAsmr').value.trim(),
@@ -582,7 +647,29 @@ async function cpSave () {
   setTimeout(() => { $('cpSaveTip').textContent = '' }, 3000)
 }
 $('cpSave').addEventListener('click', cpSave)
+// 备份：导出/导入全部设置（含 API Key）+ 角色卡 + 历史 + 记忆，纯本地文件
+$('cpExportBtn').addEventListener('click', async () => {
+  const tip = $('cpDataTip')
+  try {
+    await cpSave()
+    tip.textContent = '导出中…'
+    const r = await window.companion.exportBackup()
+    tip.textContent = r.ok ? '✓ 已导出：' + r.path : ((r.message || '已取消') )
+  } catch (err) { tip.textContent = '导出失败：' + (err && err.message) }
+})
+$('cpImportBtn').addEventListener('click', async () => {
+  const tip = $('cpDataTip')
+  try {
+    const r = await window.companion.importBackup()
+    if (r.ok) { tip.textContent = '✓ 导入成功，应用即将重启生效…'; return }
+    tip.textContent = r.message || '已取消'
+  } catch (err) { tip.textContent = '导入失败：' + (err && err.message) }
+})
+$('cpPetScale').addEventListener('input', () => { $('cpPetScaleV').textContent = ($('cpPetScale').value / 100).toFixed(1) + '×' })
 $('cpTtsProvider').addEventListener('change', () => { syncFishVisible(); cpSave() })
+$('cpTtsMode').addEventListener('change', () => { syncSysVoiceRow(); cpSave() })
+$('cpTtsVoice').addEventListener('change', cpSave)
+$('cpSysVoice').addEventListener('change', cpSave)
 $('cpFishFeeling').addEventListener('input', syncFishLabels)
 $('cpFishDensity').addEventListener('input', syncFishLabels)
 $('cpSpeed').addEventListener('input', syncFishLabels)
@@ -598,13 +685,36 @@ $('cpPreviewBtn').addEventListener('click', async () => {
       tip.textContent = ''
       playAudio(r.url, r.speed)
     } else {
-      tip.textContent = '失败：' + ((r && (r.message || r.fallback)) || '未知错误')
+      tip.textContent = '失败：' + ((r && r.message) || (r && r.fallback ? '语音合成未开启' : '未知错误'))
     }
   } catch (err) {
     tip.textContent = '失败：' + (err && err.message)
   } finally {
     $('cpPreviewBtn').disabled = false
   }
+})
+// Fish 我的声音库：拉列表 → 下拉选择 → 自动填入 reference_id（不用再手抠 ID）
+$('cpFishVoiceFetch').addEventListener('click', async () => {
+  const tip = $('cpFishVoiceTip')
+  try {
+    $('cpFishVoiceFetch').disabled = true
+    tip.textContent = '获取声音列表中…'
+    await cpSave()
+    const r = await window.companion.fishVoices()
+    if (!r || !r.ok) { tip.textContent = '失败：' + ((r && r.message) || '未知错误'); return }
+    const sel = $('cpFishVoiceSel')
+    sel.innerHTML = '<option value="">— 选择一个声音（选中自动填入 ID）—</option>' +
+      r.voices.map((v) => '<option value="' + v.id + '">' + v.title + '</option>').join('')
+    sel.hidden = false
+    tip.textContent = r.voices.length ? '共 ' + r.voices.length + ' 个声音，下拉选择即可填入 ID' : '账号下没有声音模型'
+  } catch (err) {
+    tip.textContent = '失败：' + (err && err.message)
+  } finally {
+    $('cpFishVoiceFetch').disabled = false
+  }
+})
+$('cpFishVoiceSel').addEventListener('change', function () {
+  if (this.value) { $('cpFishVoice').value = this.value; cpSave() }
 })
 $('cpFetchModels').addEventListener('click', async () => {
   await cpSave()

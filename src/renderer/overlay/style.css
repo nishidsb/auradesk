@@ -1007,8 +1007,9 @@ body.lowfx .lib-glow { display: none; }
    独立透明窗口在本机合成器被挂起，所以搬进合成正常的 overlay */
 .petstage {
   position: absolute;
-  right: 1.6rem;
-  bottom: 6.4rem;
+  /* 位置走 :root 变量：拖动角色时 petchat 面板同步跟随（两处共用同一变量） */
+  right: var(--pet-right, 1.6rem);
+  bottom: var(--pet-bottom, 6.4rem);
   width: 300px;
   height: 520px;
   z-index: 6;
@@ -1024,6 +1025,10 @@ body.lowfx .lib-glow { display: none; }
   width: 100%;
   height: 100%;
   object-fit: contain;
+  /* 透明窗口上 canvas 的合成 bug workaround：opacity<1 强制独立合成层，
+     避免与窗口 alpha 直接合并（画布内容已证实干净而屏幕有薄纱） */
+  opacity: .999;
+  transform: translateZ(0);
 }
 .petstage-fallback {
   position: absolute;
@@ -1034,3 +1039,99 @@ body.lowfx .lib-glow { display: none; }
   color: #8f7bff;
   text-shadow: 0 0 18px rgba(143, 123, 255, .55);
 }
+/* 角色大小：设置里可调（pet.js 写入 --pet-scale） */
+.petstage { width: calc(300px * var(--pet-scale, 1)); height: calc(520px * var(--pet-scale, 1)); }
+
+/* ---------------- 桌宠聊天面板（悬停角色时弹出） ---------------- */
+.petchat {
+  position: absolute;
+  /* 位置由 pet.js positionChat() 用角色包围盒实时计算：默认贴角色正下方，强制夹在屏内 */
+  left: 0;
+  top: 0;
+  width: 300px;
+  max-height: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 7;
+  pointer-events: auto;
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(24, 22, 38, .82);
+  border: 1px solid rgba(255, 255, 255, .1);
+  /* 注意：透明窗口上禁用 backdrop-filter（会渲染成灰色矩形，见 smoke-wall 断言） */
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .35);
+}
+.petchat[hidden] { display: none; }
+/* 回复气泡：贴角色头顶浮出，流式更新，完成后淡出。纯显示不拦鼠标 */
+.petbubble {
+  position: absolute;
+  max-width: 280px;
+  padding: 10px 13px;
+  border-radius: 14px 14px 14px 4px;
+  background: rgba(24, 22, 38, .88);
+  border: 1px solid rgba(255, 255, 255, .12);
+  color: #eef0f8;
+  font-size: 13px;
+  line-height: 1.55;
+  word-break: break-word;
+  z-index: 8;
+  pointer-events: none;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, .3);
+  transition: opacity .35s ease;
+}
+.petbubble.fading { opacity: 0; }
+.petbubble[hidden] { display: none; }
+.petchat-msgs {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 60px;
+  max-height: 320px;
+  padding-right: 2px;
+}
+.petchat-msgs:empty { display: none; }
+.pmsg {
+  max-width: 86%;
+  padding: 7px 10px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+  color: #eee;
+}
+.pmsg.ai { align-self: flex-start; background: rgba(255, 255, 255, .1); border-bottom-left-radius: 4px; }
+.pmsg.user { align-self: flex-end; background: rgba(143, 123, 255, .38); border-bottom-right-radius: 4px; }
+.pmsg.err { align-self: flex-start; background: rgba(220, 80, 80, .3); color: #ffd9d9; }
+.pmsg.think { align-self: flex-start; background: transparent; color: rgba(255,255,255,.45); font-size: 11.5px; }
+.petchat-row { display: flex; gap: 6px; align-items: flex-end; }
+.petchat-row textarea {
+  flex: 1;
+  resize: none;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, .3);
+  color: #fff;
+  font-size: 12.5px;
+  line-height: 1.4;
+  padding: 7px 9px;
+  max-height: 72px;
+  outline: none;
+}
+.petchat-row textarea:focus { border-color: rgba(143, 123, 255, .6); }
+.petchat-mic, .petchat-send {
+  border: 0;
+  border-radius: 10px;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  cursor: pointer;
+  font-size: 14px;
+  background: rgba(255, 255, 255, .1);
+  color: #fff;
+}
+.petchat-mic:hover, .petchat-send:hover { background: rgba(143, 123, 255, .4); }
+.petchat-mic.on { background: rgba(255, 96, 96, .55); box-shadow: 0 0 10px rgba(255, 96, 96, .5); }

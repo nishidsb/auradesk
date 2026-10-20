@@ -250,6 +250,13 @@ function rebuildApps () {
 
 /* ---------------------------------------------------------------- IPC */
 
+/** 句柄有效性：必须在最近一次 scan 的窗口列表里（失效/复用 HWND 绝不能去 toggle，
+ *  否则 SwitchToThisWindow 会误激活别的窗口、任务栏闪红点） */
+function windowAlive (h) {
+  const n = Math.trunc(Number(h))
+  return Number.isFinite(n) && n > 0 && latestWindows.some((w) => Math.trunc(Number(w.h)) === n)
+}
+
 function registerIpc () {
   ipcMain.handle('overlay:app-state', () => latestApps)
   ipcMain.handle('overlay:window-shot', (_e, hwnd) => {
@@ -266,6 +273,12 @@ function registerIpc () {
   ipcMain.on('overlay:toggle-app', (_e, id) => {
     const a = latestApps[id]
     if (a && Number.isFinite(Number(a.h))) {
+      if (!windowAlive(a.h)) {
+        // 卡片映射可能是上一轮 scan 的旧数据：窗口刚被关掉/句柄复用时直接拒绝
+        log('[toggle] id=' + id + ' h=' + a.h + ' 不在当前窗口列表（已关闭或句柄失效），拒绝切换')
+        deps.broadcastAll('overlay:toggle-result', { ok: false, act: false, err: '该窗口可能已关闭，请稍后再试' })
+        return
+      }
       log('[toggle] 收到切换 id=' + id + ' → h=' + a.h + ' min=' + a.min + ' fg=' + a.fg)
       helperCmd(`toggle ${Math.trunc(Number(a.h))}`, 'toggle')
     } else {
@@ -278,6 +291,11 @@ function registerIpc () {
   ipcMain.on('edgebar:toggle-hwnd', (_e, h) => {
     const n = Math.trunc(Number(h))
     if (!Number.isFinite(n) || n <= 0 || n > 0x7fffffff) return
+    if (!windowAlive(n)) {
+      log('[toggle] 边缘任务条 h=' + n + ' 不在当前窗口列表（已关闭或句柄失效），拒绝切换')
+      deps.broadcastAll('overlay:toggle-result', { ok: false, act: false, err: '该窗口可能已关闭' })
+      return
+    }
     log('[toggle] 边缘任务条切换 h=' + n)
     helperCmd(`toggle ${n}`, 'toggle')
   })
@@ -307,6 +325,10 @@ module.exports = {
   toggleByHandle (h) {
     const n = Math.trunc(Number(h))
     if (!Number.isFinite(n) || n <= 0 || n > 0x7fffffff) return false
+    if (!windowAlive(n)) {
+      log('[toggle] AI 工具 toggleByHandle h=' + n + ' 不在当前窗口列表，拒绝切换')
+      return false
+    }
     helperCmd(`toggle ${n}`, 'toggle')
     return true
   },

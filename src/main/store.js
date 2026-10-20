@@ -174,6 +174,13 @@ function get () {
   return load()
 }
 
+/** 导入备份用：整体替换配置（走 hydrate 合并默认值+版本迁移），立即落盘 */
+function replace (data) {
+  cache = hydrate(data)
+  flush()
+  return cache
+}
+
 function patchGlobal (patch) {
   const cfg = load()
   cfg.global = { ...cfg.global, ...patch }
@@ -215,6 +222,7 @@ function displayCfg (key) {
 
 module.exports = {
   get,
+  replace,
   flush,
   save,
   patchGlobal,

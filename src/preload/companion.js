@@ -19,6 +19,9 @@ contextBridge.exposeInMainWorld('companion', {
   logImage: (name, dataUrl) => ipcRenderer.invoke('companion:log-image', name, dataUrl),
   transcribe: (b64, mime) => ipcRenderer.invoke('companion:transcribe', b64, mime),
   tts: (text) => ipcRenderer.invoke('companion:tts', text),
+  fishVoices: () => ipcRenderer.invoke('companion:fish-voices'),
+  exportBackup: () => ipcRenderer.invoke('companion:export-backup'),
+  importBackup: () => ipcRenderer.invoke('companion:import-backup'),
   win: (action) => ipcRenderer.invoke('companion:win', action),
   // 桌面角色
   petShow: () => ipcRenderer.invoke('pet:show'),

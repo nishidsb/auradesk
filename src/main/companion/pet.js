@@ -66,6 +66,28 @@ function registerIpc (getChar, patchCfgFn) {
   })
   // overlay 启动时拉取初始状态
   ipcMain.handle('pet:state', () => state)
+  // 截屏取证：把屏幕真实画面存成 png（排查灰框等渲染问题，不用用户手动截图）
+  const fs = require('fs')
+  const path = require('path')
+  const { screen, desktopCapturer } = require('electron')
+  let snapSeq = 0
+  ipcMain.handle('pet:snapshot', async (_e, tag) => {
+    try {
+      const d = screen.getPrimaryDisplay()
+      const th = {
+        width: Math.min(3840, Math.round(d.size.width * d.scaleFactor)),
+        height: Math.min(2160, Math.round(d.size.height * d.scaleFactor))
+      }
+      const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: th })
+      if (!sources || !sources.length) return false
+      snapSeq++
+      const { app } = require('electron')
+      const p = path.join(app.getPath('userData'), 'logs', 'pet-snap-' + (tag || snapSeq) + '.png')
+      fs.writeFileSync(p, sources[0].thumbnail.toPNG())
+      log('[pet] 截屏已保存:', p)
+      return true
+    } catch (e) { log('[pet] 截屏失败:', e && e.message); return false }
+  })
 }
 
 module.exports = { show, hide, refresh, registerIpc, boot, setBroadcast, petCfg }

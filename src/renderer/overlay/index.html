@@ -139,6 +139,16 @@
       <canvas id="petVrmCanvas" hidden></canvas>
       <div class="petstage-fallback" id="petFallback" hidden>✦</div>
     </div>
+    <!-- 桌宠回复气泡：贴角色头顶浮出，流式更新后自动淡出（不要聊天框形式） -->
+    <div class="petbubble" id="petBubble" hidden></div>
+    <!-- 悬停角色时的输入条（只有一行输入，不显示聊天记录） -->
+    <div class="petchat" id="petChat" data-hot hidden>
+      <div class="petchat-row">
+        <button class="petchat-mic" id="petMic" title="语音捕捉开关">🎤</button>
+        <textarea id="petChatInput" rows="1" placeholder="和 TA 说点什么…"></textarea>
+        <button class="petchat-send" id="petSendBtn" title="发送">➤</button>
+      </div>
+    </div>
 
     <div class="toast" id="toast"></div>
   </div>

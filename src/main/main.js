@@ -7,7 +7,7 @@
  */
 const {
   app, BrowserWindow, ipcMain, screen, dialog, shell, globalShortcut, protocol, net,
-  Tray, Menu, nativeImage
+  Tray, Menu, nativeImage, powerSaveBlocker
 } = require('electron')
 const path = require('node:path')
 const fs = require('node:fs')
@@ -452,11 +452,16 @@ function createOverlay (key, display, opts = {}) {
 
   win.once('ready-to-show', () => {
     win.showInactive()
-    // 默认整窗穿透；渲染层启动后会上报热区，主进程用 setShape 精确放行。
-    // 形状外 = 系统级穿透，鼠标 / 触屏 / 触控笔都直接点到桌面，零开销零延迟。
-    win.setIgnoreMouseEvents(true)
+    // 默认整窗穿透 + 转发鼠标事件：渲染层判断光标是否在热元素上，动态切换穿透
+    // （v0.3.38 弃用 setShape——SetWindowRgn 裁剪视觉，导致角色灰框/拖动裁剪）
+    win.setIgnoreMouseEvents(true, { forward: true })
     win.setAlwaysOnTop(!!store.get().global.alwaysOnTop)
     if (CAPTURE) win.setAlwaysOnTop(true, 'screen-saver')
+    // 合成兜底：周期性强制触发一次合成帧调度。透明常驻窗口被 Chromium 判为
+    // 「无自主上屏需求」时，invalidate 是把 BeginFrame 叫醒的最直接手段
+    setInterval(() => {
+      if (!win.isDestroyed()) win.webContents.invalidate()
+    }, 40)
   })
 
   win.on('closed', () => {
@@ -708,10 +713,23 @@ app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
 // 同类问题第二层：窗口被判遮挡后 renderer 会整体被挂起（上屏停住）。
 // 实测 renderer 在产帧（canvas 位图在变）但屏幕不动，必须再禁掉这个
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
+// 同类问题第三层：renderer 进程整体「后台化」降级（timer/rAF/合成全被节流）。
+// 0.3.25 心跳证实：动画时间在涨、GL 在画，但屏幕冻结在第一帧 → renderer 呈现被节流
+app.commandLine.appendSwitch('disable-renderer-backgrounding')
+// 2D canvas 走 CPU 光栅化：本机 GPU 合成对透明窗口中的 canvas 纹理层有 bug
+// （角色区域灰框/薄纱，内容位图实测干净）。canvas 变软件位图后合成路径不同可绕开；
+// 桌宠画布仅 300x520，CPU 光栅化无压力。注意：不可用 disable-gpu-compositing
+// （0.3.20 实测会把透明窗口整体变灰）
+app.commandLine.appendSwitch('disable-accelerated-2d-canvas')
 // 注意：不要加 disable-gpu-compositing——软件合成会把透明窗口底色变灰
 // （0.3.20 实测翻车）。桌宠已改为渲染进 overlay 窗口，不再依赖独立透明小窗口
 
 app.whenReady().then(() => {
+  // 常驻透明桌面层依赖持续合成上屏：阻止系统/Chromium 出于节能挂起渲染
+  try {
+    const psbId = powerSaveBlocker.start('prevent-app-suspension')
+    log('[boot] powerSaveBlocker prevent-app-suspension started, id=' + psbId)
+  } catch (e) { log('[boot] powerSaveBlocker 启动失败: ' + e.message) }
   protocol.handle('aura', async (request) => {
     const u = new URL(request.url)
     const abs = decodeURIComponent(u.pathname.replace(/^\//, ''))
@@ -741,6 +759,7 @@ app.whenReady().then(() => {
   edgebar.registerIpc()
   // AI 伴侣：IPC + 贾维斯工具集注入（复用 launcher 状态与卡片启动）
   companion.registerIpc()
+  companion.setOverlayBroadcast(broadcastAll)
   require('./companion/tools').init(taskbar, broadcastAll, launchGame)
   // 桌宠（overlay 内嵌版）：注入向 overlay 广播的通道，再启动拉初始角色
   const petMod = require('./companion/pet')
@@ -748,6 +767,33 @@ app.whenReady().then(() => {
     for (const [, w] of overlayWins) if (!w.isDestroyed()) w.webContents.send(ch, data)
   })
   petMod.boot()
+  // 聊天输入需要键盘：overlay 窗口 focusable:false（不抢焦点设计），聊天面板显示时动态切换
+  ipcMain.handle('pet:chat-focus', (_e, on) => {
+    for (const [, w] of overlayWins) {
+      if (w.isDestroyed()) continue
+      try {
+        w.setFocusable(!!on)
+        if (on) w.focus()
+      } catch {}
+    }
+    return true
+  })
+  companion.bootPet()
+  // 视觉跟踪：主进程轮询全局光标（overlay 窗口穿透收不到桌面移动），广播给渲染层
+  {
+    let lastX = -1
+    let lastY = -1
+    setInterval(() => {
+      try {
+        const p = screen.getCursorScreenPoint()
+        if (p.x !== lastX || p.y !== lastY) {
+          lastX = p.x
+          lastY = p.y
+          for (const [, w] of overlayWins) if (!w.isDestroyed()) w.webContents.send('overlay:cursor', { x: p.x, y: p.y })
+        }
+      } catch {}
+    }, 80)
+  }
   companion.bootPet()
   registerShortcuts()
   createTray()
@@ -873,31 +919,14 @@ ipcMain.handle('overlay:init', (e) => {
   return payloadForKey(key)
 })
 
-/* 渲染层上报的热区（窗口内坐标）。有热区 → setShape 精确放行，形状外
-   Windows 原生穿透（触屏 / 触控笔同样适用）；无热区 → 整窗穿透。 */
-let lastShapeLog = 0
-ipcMain.on('overlay:set-shape', (e, rects) => {
+/* 输入穿透：v0.3.38 起弃用 setShape（SetWindowRgn 会裁剪视觉——热区矩形同时是
+   可见区域，导致角色区域灰框、拖动时被裁）。改为标准桌宠方案：窗口整窗穿透
+   + {forward:true} 转发鼠标事件给渲染层，渲染层判断光标是否在热元素上，
+   动态切换穿透。窗口始终是完整矩形，无 region 裁剪。 */
+ipcMain.on('overlay:ignore-mouse', (e, on) => {
   const win = overlayWins.get(winKey.get(e.sender.id))
   if (!win || win.isDestroyed()) return
-  try {
-    if (Array.isArray(rects) && rects.length) {
-      win.setShape(rects)
-      win.setIgnoreMouseEvents(false)
-      const now = Date.now()
-      if (now - lastShapeLog > 15000) {
-        lastShapeLog = now
-        log('[shape] 热区生效 rects=' + rects.length + '（15 秒最多记一次）')
-      }
-    } else {
-      win.setShape([])
-      win.setIgnoreMouseEvents(true)
-      log('[shape] 收到空热区 → 整窗穿透')
-    }
-  } catch (err) {
-    // setShape 失败绝不能把窗口留在整窗穿透里——降级成整窗可点，功能优先
-    try { win.setIgnoreMouseEvents(false) } catch {}
-    log('[shape] setShape 异常，已降级整窗可点:', err && (err.stack || err.message))
-  }
+  try { win.setIgnoreMouseEvents(!!on, { forward: !!on }) } catch {}
 })
 
 /* 渲染层未捕获异常：boot 挂掉 / 按钮没绑上这类问题，只有这里能看到 */

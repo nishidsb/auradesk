@@ -1,8 +1,15 @@
 'use strict'
 const { contextBridge, ipcRenderer } = require('electron')
+// 桌宠依赖持续自主上屏：渲染层层面再兜底关闭后台节流（rAF/timer/合成）
+try {
+  const { webFrame } = require('electron')
+  if (webFrame && webFrame.setBackgroundThrottling) webFrame.setBackgroundThrottling(false)
+} catch (e) { console.warn('[overlay preload] webFrame 节流关闭失败', e && e.message) }
 
 contextBridge.exposeInMainWorld('aura', {
   init: () => ipcRenderer.invoke('overlay:init'),
+  // v0.3.38：弃用 setShape（裁剪视觉）。动态穿透：渲染层判断光标在热元素上时关穿透
+  ignoreMouse: (on) => ipcRenderer.send('overlay:ignore-mouse', on),
   setShape: (rects) => ipcRenderer.send('overlay:set-shape', rects),
   reportError: (kind, msg, stack) => ipcRenderer.send('overlay:renderer-error', kind, msg, stack),
   openSettings: () => ipcRenderer.send('overlay:open-settings'),
@@ -39,5 +46,21 @@ contextBridge.exposeInMainWorld('aura', {
   petGetChar: () => ipcRenderer.invoke('pet:get-char'),
   assetUrl: (p) => ipcRenderer.invoke('companion:asset-url', p),
   assetData: (p) => ipcRenderer.invoke('companion:asset-data', p),
-  onPetState: (cb) => ipcRenderer.on('pet:state', (_e, s) => cb(s))
+  onPetState: (cb) => ipcRenderer.on('pet:state', (_e, s) => cb(s)),
+  petSnapshot: (tag) => ipcRenderer.invoke('pet:snapshot', tag),
+  logImage: (name, dataUrl) => ipcRenderer.invoke('companion:log-image', name, dataUrl),
+  // ---- 桌宠增强：视觉跟踪光标 / 气泡聊天 / 语音捕捉 / 角色大小 ----
+  onCursor: (cb) => ipcRenderer.on('overlay:cursor', (_e, p) => cb(p)),
+  petSettings: () => ipcRenderer.invoke('companion:settings'),
+  petChatSend: (text) => ipcRenderer.invoke('companion:send', text),
+  // 聊天面板显示时让 overlay 窗口可聚焦（收键盘），隐藏时切回不可聚焦
+  petChatFocus: (on) => ipcRenderer.invoke('pet:chat-focus', on),
+  petChatStop: () => ipcRenderer.invoke('companion:stop'),
+  petTranscribe: (b64, mime) => ipcRenderer.invoke('companion:transcribe', b64, mime),
+  // 触摸反应语音：用当前 TTS 档位合成一句反应语（{ok,url,speed} 或 {fallback}）
+  petSpeak: (text) => ipcRenderer.invoke('companion:tts', String(text || '').slice(0, 200)),
+  onPetDelta: (cb) => ipcRenderer.on('companion:delta', (_e, d) => cb(d)),
+  onPetDone: (cb) => ipcRenderer.on('companion:done', (_e, d) => cb(d)),
+  onPetError: (cb) => ipcRenderer.on('companion:error', (_e, d) => cb(d)),
+  onPetConfig: (cb) => ipcRenderer.on('pet:config', (_e, c) => cb(c))
 })

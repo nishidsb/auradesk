@@ -94,11 +94,23 @@
         </label>
         <label class="cd-check"><input type="checkbox" id="cpVision"> 允许 AI 截屏看桌面（需支持视觉的模型）</label>
         <label class="cd-check"><input type="checkbox" id="cpPetOn"> 在桌面显示角色（右下角，可拖动）</label>
-        <label>AI 回复语言（外语提问按此语言回复＝翻译）
+        <label>角色大小 <span id="cpPetScaleV">1.0×</span>
+          <input id="cpPetScale" type="range" min="40" max="200" step="5" value="100">
+        </label>
+        <label>AI 回复语言（＝她说的话，TTS 朗读这个语言；自动＝跟用户语言走）
           <select id="cpReplyLang">
+            <option value="auto">自动（跟用户语言走）</option>
             <option value="zh">中文</option>
             <option value="en">English</option>
             <option value="ja">日本語</option>
+          </select>
+        </label>
+        <label>显示字幕（把台词翻译成这个语言显示，朗读仍是台词原语言；例如台词=日本語＋字幕=中文 → 她说日语、显示中文）
+          <select id="cpSubLang">
+            <option value="off">关闭（台词原样显示）</option>
+            <option value="zh">中文字幕</option>
+            <option value="en">English subtitles</option>
+            <option value="ja">日本語字幕</option>
           </select>
         </label>
         <label>语音合成（朗读回复）
@@ -115,10 +127,24 @@
           <input id="cpTtsBase" placeholder="TTS 地址（留空复用 API 地址）">
           <input id="cpTtsModel" placeholder="TTS 模型（OpenAI 兼容端点用）">
           <input id="cpTtsKey" type="password" placeholder="TTS Key（留空复用 API Key）">
+          <select id="cpTtsVoice" hidden>
+            <option value="alloy">alloy（中性）</option>
+            <option value="echo">echo（男声）</option>
+            <option value="fable">fable（英式叙事）</option>
+            <option value="onyx">onyx（低沉男声）</option>
+            <option value="nova">nova（活力女声）</option>
+            <option value="shimmer">shimmer（柔和女声）</option>
+          </select>
           <input id="cpTtsRefAudio" placeholder="GPT-SoVITS：参考音频 wav 路径">
           <input id="cpTtsPromptText" placeholder="GPT-SoVITS：参考音频里说的话">
         </label>
+        <label id="cpSysVoiceRow" hidden>朗读音色（系统语音；任选语种，与回复语言互不影响）
+          <select id="cpSysVoice"><option value="">自动（跟随回复语言）</option></select>
+        </label>
         <div id="cpFish" hidden>
+          <label>Fish Audio API Key（专用；留空则用上方 TTS Key / API Key）
+            <input id="cpFishKey" type="password" placeholder="fa-xxxxxxxx">
+          </label>
           <label>Fish Audio API 端点
             <input id="cpFishBase" placeholder="https://api.fish.audio/v1/tts">
           </label>
@@ -127,6 +153,9 @@
           </label>
           <label>Voice model ID / reference_id（Fish 声音库或自建声音模型的 ID）
             <input id="cpFishVoice" placeholder="57c45a3aa7b34a62af8eb27137f092c8">
+            <button id="cpFishVoiceFetch" class="cd-btn">获取我的声音列表</button>
+            <select id="cpFishVoiceSel" hidden></select>
+            <div class="hint" id="cpFishVoiceTip"></div>
           </label>
           <label>ASMR 模式 Voice model ID（留空沿用普通音色）
             <input id="cpFishAsmr" placeholder="2c83af8fceab43748439353dd501be21">
@@ -152,6 +181,9 @@
           <label>语速（<span id="cpSpeedV">1.0</span>x，播放速率）
             <input id="cpSpeed" type="range" min="50" max="200" value="100">
           </label>
+          <label>语音请求的网络代理（系统代理若是「API 中转」会替换 Key 导致 401 时用这个绕开）
+            <input id="cpNetProxy" placeholder="留空=跟随系统 | direct=强制直连 | 如 http://127.0.0.1:7890">
+          </label>
           <label>试听文字
             <textarea id="cpFishPreview" rows="2">你好！今天也一起去寻找有趣的炼金素材吧！</textarea>
             <button id="cpPreviewBtn" class="cd-btn wide">▶ 试听（用当前档位）</button>
@@ -168,6 +200,11 @@
             <option value="en">识别语言：英文</option>
             <option value="ja">识别语言：日文</option>
           </select>
+        </label>
+        <label>数据管理（API Key、角色卡、对话历史、记忆全部只保存在本机，不上传任何服务器；备份文件含明文 Key，请妥善保管）
+          <button id="cpExportBtn" class="cd-btn">导出全部设置到文件</button>
+          <button id="cpImportBtn" class="cd-btn">从备份文件导入（导入后自动重启）</button>
+          <div class="hint" id="cpDataTip"></div>
         </label>
         <button id="cpSave" class="cd-save">保存设置</button>
         <div class="hint" id="cpSaveTip"></div>

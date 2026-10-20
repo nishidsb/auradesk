@@ -26,6 +26,7 @@ namespace Aura {
     public delegate bool EnumProc(IntPtr h, IntPtr lp);
     [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc cb, IntPtr lp);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+    [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
     [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowTextW(IntPtr h, [MarshalAs(UnmanagedType.LPWStr)] StringBuilder s, int n);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassNameW(IntPtr h, [MarshalAs(UnmanagedType.LPWStr)] StringBuilder s, int n);
@@ -366,6 +367,12 @@ function Invoke-Cmd([string]$cmd) {
     }
     if ($cmd -like 'toggle *') {
       $h = [IntPtr][int64](($cmd -split ' ', 2)[1])
+      # stale/reused-hwnd guard: never touch a dead or hidden handle
+      # (SwitchToThisWindow on a recycled hwnd can bring an unrelated window
+      # to the front and flash the taskbar red with no notification)
+      if (-not [Aura.W32]::IsWindow($h) -or -not [Aura.W32]::IsWindowVisible($h)) {
+        return ('{"ok":false,"act":false,"err":"stale or invisible hwnd ' + [int64]$h + '"}')
+      }
       # already foreground and not minimized -> minimize (task switcher habit)
       if (-not [Aura.W32]::IsIconic($h) -and $h -eq [Aura.W32]::GetForegroundWindow()) {
         # keep a last frame so the hover bubble can still preview it while minimized
@@ -380,7 +387,6 @@ function Invoke-Cmd([string]$cmd) {
         return '{"ok":true,"act":true}'
       }
       if ([Aura.W32]::IsIconic($h)) { [Aura.W32]::ShowWindow($h, 9) | Out-Null } # SW_RESTORE
-      # A background process cannot steal focus directly: SetForegroundWindow gets
       # A background process cannot steal focus directly: SetForegroundWindow gets
       # rejected. Temporarily attach our input thread to the current foreground
       # thread and the target thread, then bring the target window to front.

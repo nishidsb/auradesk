@@ -1346,10 +1346,27 @@ function renderDevGroup (box, list, cur, flow) {
   box.replaceChildren(frag)
 }
 
-/* 热区：主进程 setShape 主动上报（v0.2.0 起的输入架构） */
+/* 热区：v0.3.38 弃用 setShape（SetWindowRgn 裁剪视觉 → 角色区域灰框、拖动被裁）。
+   新架构：窗口整窗穿透 + forward 转发鼠标事件，这里维护热区矩形并在 mousemove
+   里判断光标是否落在热区内，动态切换穿透（状态变化才 IPC）。 */
 
 let shapeRaf = 0
-let lastShapeSig = ''
+let hotRects = []
+let mouseHot = false
+const lastMouse = { x: -1, y: -1 }
+
+function hitHot (x, y) {
+  for (const r of hotRects) {
+    if (x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height) return true
+  }
+  return false
+}
+
+function applyMouseHot (hot) {
+  if (hot === mouseHot) return
+  mouseHot = hot
+  try { window.aura.ignoreMouse(!hot) } catch {}
+}
 
 function computeShape () {
   // 库面板打开 / 拖拽中 / 右键菜单开着 = 整窗都要接输入
@@ -1370,10 +1387,9 @@ function computeShape () {
       })
     }
   }
-  const sig = rects.map((r) => `${r.x},${r.y},${r.width},${r.height}`).join(';')
-  if (sig === lastShapeSig) return
-  lastShapeSig = sig
-  window.aura.setShape(rects)
+  hotRects = rects
+  // 布局变化后光标命中状态可能翻转（如面板弹出/收起），立即校正一次
+  applyMouseHot(hitHot(lastMouse.x, lastMouse.y))
 }
 
 function scheduleShape () {
@@ -1385,7 +1401,7 @@ function scheduleShape () {
 }
 
 function bindShape () {
-  // 卡片增删 / 菜单开关 / 拖拽浮层都会改热区；rAF 合并，签名去重防抖
+  // 卡片增删 / 菜单开关 / 拖拽浮层都会改热区；rAF 合并
   new MutationObserver(scheduleShape).observe(document.body, {
     childList: true,
     subtree: true,
@@ -1394,6 +1410,13 @@ function bindShape () {
   })
   window.addEventListener('resize', scheduleShape)
   window.addEventListener('contextmenu', (e) => e.preventDefault())
+
+  // 穿透状态下 forward 仍转发 mousemove；可点状态下窗口正常收。两种状态都能走到这
+  document.addEventListener('mousemove', (e) => {
+    lastMouse.x = e.clientX
+    lastMouse.y = e.clientY
+    applyMouseHot(hitHot(e.clientX, e.clientY))
+  }, { passive: true })
 
   // 光标离开窗口全部热区（如移出右键菜单）时收掉还开着的菜单
   document.addEventListener('pointerleave', () => {

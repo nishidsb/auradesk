@@ -438,6 +438,18 @@ function createOverlay (key, display, opts = {}) {
     query: { key, capture: CAPTURE ? '1' : '' }
   })
 
+  // 诊断全链路：overlay 渲染层的日志/报错必须留痕（桌面层曾因无转发成盲区，
+  // pet.js 语法错误导致整层空白都查不到）
+  {
+    const owc = win.webContents
+    const short = (u) => String(u || '').split('/').pop()
+    owc.on('console-message', (_e, level, message, line, sourceId) => {
+      if (level >= 1) log('[overlay] 渲染层:', message, '@', short(sourceId) + ':' + line)
+    })
+    owc.on('did-fail-load', (_e, code, desc, url) => log('[overlay] 加载失败', code, desc, url))
+    owc.on('preload-error', (_e, p, err) => log('[overlay] preload 报错:', p, err && err.message))
+  }
+
   win.once('ready-to-show', () => {
     win.showInactive()
     // 默认整窗穿透；渲染层启动后会上报热区，主进程用 setShape 精确放行。

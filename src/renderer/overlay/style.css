@@ -1012,9 +1012,11 @@ body.lowfx .lib-glow { display: none; }
   width: 300px;
   height: 520px;
   z-index: 6;
-  pointer-events: none;
+  pointer-events: auto;
   overflow: hidden;
+  cursor: grab;
 }
+.petstage:active { cursor: grabbing; }
 .petstage canvas,
 .petstage img {
   position: absolute;

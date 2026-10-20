@@ -89,11 +89,9 @@ async function showSpine (v) {
   currentSig = sig
   disposeSpine()
   const ver = await detectSpineVersion(skelUrl)
-  // 优先 WebGL 运行时（GPU 画 mesh，无逐三角形裁剪开销）；没有对应版本再退 canvas
-  const GL = libs.AuraSpineGL && ver && libs.AuraSpineGL[ver]
-  const SPINE = GL || (libs.AuraSpine && ver && libs.AuraSpine[ver]) || libs.SPINE
-  if (!GL) patchSpineSeam(SPINE)
-  console.warn('[pet-ov] 骨架版本', ver || '未知', '→ 运行时', GL ? 'webgl ' + ver : (SPINE === libs.SPINE ? '4.3 canvas（兜底）' : ver + ' canvas'))
+  // 优先 WebGL 运行时（GPU 画 mesh，无逐三角形裁剪开销）；初始化失败降级 canvas
+  let GL = libs.AuraSpineGL && ver && libs.AuraSpineGL[ver]
+  let SPINE = GL || (libs.AuraSpine && ver && libs.AuraSpine[ver]) || libs.SPINE
   const canvas = $('petSpineCanvas')
   const scale = window.devicePixelRatio || 1
   canvas.width = canvas.clientWidth * scale
@@ -101,13 +99,24 @@ async function showSpine (v) {
   let ctx = null
   let managedGl = null
   let assetManager
+  let useGL = false
   if (GL) {
-    managedGl = new GL.ManagedWebGLRenderingContext(canvas, { alpha: true, premultipliedAlpha: false, antialias: true })
-    assetManager = new GL.AssetManager(managedGl, atlasUrl.replace(/[^/]*$/, ''))
-  } else {
+    try {
+      managedGl = new GL.ManagedWebGLRenderingContext(canvas, { alpha: true, premultipliedAlpha: false, antialias: true })
+      assetManager = new GL.AssetManager(managedGl, atlasUrl.replace(/[^/]*$/, ''))
+      useGL = true
+    } catch (e) {
+      console.warn('[pet-ov] WebGL 初始化失败，降级 canvas:', e && e.message)
+      GL = null
+      SPINE = (libs.AuraSpine && ver && libs.AuraSpine[ver]) || libs.SPINE
+    }
+  }
+  if (!useGL) {
+    patchSpineSeam(SPINE)
     ctx = canvas.getContext('2d', { willReadFrequently: false })
     assetManager = new SPINE.AssetManager(atlasUrl.replace(/[^/]*$/, ''))
   }
+  console.warn('[pet-ov] 骨架版本', ver || '未知', '→ 运行时', useGL ? 'webgl ' + ver : (SPINE === libs.SPINE ? '4.3 canvas（兜底）' : ver + ' canvas'))
   // 贴图页预转 dataURL（绕开 Image+crossOrigin 对自定义协议的 CORS 拦截），失败走主进程兜底
   try {
     const atlasText = await (await fetch(atlasUrl)).text()
@@ -185,7 +194,7 @@ async function showSpine (v) {
   console.warn('[pet-ov] 加载成功 → 播放', idle && idle.name)
   if (idle) state.setAnimation(0, idle.name, true)
   // WebGL 路径：GPU 画 mesh，30fps 足够流畅且几乎不占主线程
-  if (GL) {
+  if (useGL) {
     const sceneRenderer = new GL.SceneRenderer(canvas, managedGl)
     const gl = managedGl.gl
     let boundsFrame = 0
@@ -287,8 +296,45 @@ async function showVrm (v) {
   loop()
 }
 
+/* ---------------- 拖动：按住角色拖到任意位置（参考 agentatelierR 的 startDrag） ---------------- */
+function setupDrag () {
+  const el = $('petStage')
+  let drag = null
+  // 恢复上次位置（相对右/下边的像素偏移）
+  try {
+    const saved = JSON.parse(localStorage.getItem('auraPetPos') || 'null')
+    if (saved && isFinite(saved.right) && isFinite(saved.bottom)) {
+      el.style.right = saved.right + 'px'
+      el.style.bottom = saved.bottom + 'px'
+    }
+  } catch {}
+  el.addEventListener('pointerdown', (e) => {
+    drag = { x: e.clientX, y: e.clientY, right: parseFloat(el.style.right) || 26, bottom: parseFloat(el.style.bottom) || 102 }
+    el.setPointerCapture(e.pointerId)
+    e.preventDefault()
+  })
+  el.addEventListener('pointermove', (e) => {
+    if (!drag) return
+    const right = Math.round(drag.right + (drag.x - e.clientX))
+    const bottom = Math.round(drag.bottom + (drag.y - e.clientY))
+    el.style.right = Math.max(-window.innerWidth + 120, Math.min(window.innerWidth - 120, right)) + 'px'
+    el.style.bottom = Math.max(0, Math.min(window.innerHeight - 80, bottom)) + 'px'
+  })
+  el.addEventListener('pointerup', () => {
+    if (!drag) return
+    drag = null
+    try {
+      localStorage.setItem('auraPetPos', JSON.stringify({ right: parseFloat(el.style.right), bottom: parseFloat(el.style.bottom) }))
+    } catch {}
+    // 通知热区系统重算（petStage 位置变了）
+    window.dispatchEvent(new Event('resize'))
+  })
+  el.addEventListener('pointercancel', () => { drag = null })
+}
+
 /* ---------------- 启动 & 刷新 ---------------- */
 ;(async () => {
+  setupDrag()
   const st = await window.aura.petState()
   if (st && st.visible && st.char) await showVisual(st.char)
   window.aura.onPetState(async (s) => {

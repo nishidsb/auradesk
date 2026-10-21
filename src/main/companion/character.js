@@ -4,7 +4,6 @@
  * userData/companion/
  *   characters.json           角色卡列表（persona / 世界书 / 形象 / 声音）
  *   <charId>/history.json     对话历史
- *   <charId>/memory.json      记忆账本（见 memory.js）
  *   assets/<charId>/...       立绘 / Spine / VRM 资源
  */
 const { app } = require('electron')

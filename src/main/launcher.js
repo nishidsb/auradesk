@@ -319,7 +319,7 @@ module.exports = {
   start,
   stop,
   setDeps (d) { deps = { ...deps, ...d } },
-  // AI 伴侣工具集（companion/tools.js）需要的状态与动作
+  // 桌面状态与动作（供内部与调试使用）
   get latestWindows () { return latestWindows },
   get latestApps () { return latestApps },
   toggleByHandle (h) {

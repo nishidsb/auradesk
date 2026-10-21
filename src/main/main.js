@@ -24,7 +24,6 @@ const lyrics = require('./lyrics')
 const icons = require('./icons')
 const taskbar = require('./launcher')
 const edgebar = require('./edgebar')
-const companion = require('./companion')
 const { log } = require('./logger')
 
 const CAPTURE = process.argv.includes('--capture')
@@ -650,7 +649,6 @@ function refreshTrayMenu () {
   const g = store.get().global
   const visible = [...overlayWins.values()].some((w) => !w.isDestroyed() && w.isVisible())
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'AI…', click: () => companion.createWindow() },
     { label: '打开设置…', accelerator: g.hotkeySettings || undefined, click: () => openSettings() },
     { label: visible ? '隐藏桌面层' : '显示桌面层', accelerator: g.hotkeyToggle || undefined, click: toggleOverlays },
     { type: 'separator' },
@@ -757,44 +755,7 @@ app.whenReady().then(() => {
   taskbar.setDeps({ broadcastAll })
   taskbar.start()
   edgebar.registerIpc()
-  // AI 伴侣：IPC + 贾维斯工具集注入（复用 launcher 状态与卡片启动）
-  companion.registerIpc()
-  companion.setOverlayBroadcast(broadcastAll)
-  require('./companion/tools').init(taskbar, broadcastAll, launchGame)
-  // 桌宠（overlay 内嵌版）：注入向 overlay 广播的通道，再启动拉初始角色
-  const petMod = require('./companion/pet')
-  petMod.setBroadcast((ch, data) => {
-    for (const [, w] of overlayWins) if (!w.isDestroyed()) w.webContents.send(ch, data)
-  })
-  petMod.boot()
-  // 聊天输入需要键盘：overlay 窗口 focusable:false（不抢焦点设计），聊天面板显示时动态切换
-  ipcMain.handle('pet:chat-focus', (_e, on) => {
-    for (const [, w] of overlayWins) {
-      if (w.isDestroyed()) continue
-      try {
-        w.setFocusable(!!on)
-        if (on) w.focus()
-      } catch {}
-    }
-    return true
-  })
-  companion.bootPet()
-  // 视觉跟踪：主进程轮询全局光标（overlay 窗口穿透收不到桌面移动），广播给渲染层
-  {
-    let lastX = -1
-    let lastY = -1
-    setInterval(() => {
-      try {
-        const p = screen.getCursorScreenPoint()
-        if (p.x !== lastX || p.y !== lastY) {
-          lastX = p.x
-          lastY = p.y
-          for (const [, w] of overlayWins) if (!w.isDestroyed()) w.webContents.send('overlay:cursor', { x: p.x, y: p.y })
-        }
-      } catch {}
-    }, 80)
-  }
-  companion.bootPet()
+  // v0.4.1：桌宠/AI 全部移除（AI 对话与桌面角色已由 Ryza Assistant 承担）
   registerShortcuts()
   createTray()
   applyMusicSource()
@@ -935,7 +896,6 @@ ipcMain.on('overlay:renderer-error', (_e, kind, msg, stack) => {
 })
 
 ipcMain.on('overlay:open-settings', () => openSettings())
-ipcMain.on('overlay:open-companion', () => companion.createWindow())
 
 ipcMain.on('overlay:hide', () => {
   for (const [, w] of overlayWins) if (!w.isDestroyed()) w.hide()

@@ -19,7 +19,6 @@
           <div class="rail-hr"></div>
           <nav class="dock" id="dock" data-hot>
             <button class="dock-btn" id="dockLib" title="全部游戏 · 搜索"></button>
-            <button class="dock-btn" id="dockAura" title="AI"></button>
             <button class="dock-btn" id="dockSet" title="设置"></button>
             <button class="dock-btn" id="dockHide" title="隐藏桌面层"></button>
           </nav>
@@ -132,28 +131,8 @@
       </button>
     </div>
 
-    <!-- 桌宠：渲染在桌面层窗口内（独立透明窗口在本机合成器被挂起，见 companion/pet.js） -->
-    <div class="petstage" id="petStage" data-hot>
-      <img id="petStill" alt="" hidden />
-      <canvas id="petSpineCanvas" hidden></canvas>
-      <canvas id="petVrmCanvas" hidden></canvas>
-      <div class="petstage-fallback" id="petFallback" hidden>✦</div>
-    </div>
-    <!-- 桌宠回复气泡：贴角色头顶浮出，流式更新后自动淡出（不要聊天框形式） -->
-    <div class="petbubble" id="petBubble" hidden></div>
-    <!-- 悬停角色时的输入条（只有一行输入，不显示聊天记录） -->
-    <div class="petchat" id="petChat" data-hot hidden>
-      <div class="petchat-row">
-        <button class="petchat-mic" id="petMic" title="语音捕捉开关">🎤</button>
-        <textarea id="petChatInput" rows="1" placeholder="和 TA 说点什么…"></textarea>
-        <button class="petchat-send" id="petSendBtn" title="发送">➤</button>
-      </div>
-    </div>
-
     <div class="toast" id="toast"></div>
   </div>
-  <script src="../companion/libs.js"></script>
-  <script src="pet.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

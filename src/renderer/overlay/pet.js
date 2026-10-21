@@ -48,7 +48,7 @@ function stopVoice () {
   } catch {}
 }
 /* ---- 触摸反应语音（对齐参考项目 tap_voice：不同部位不同反应语，随机变体）。
-   短语语言跟「AI 回复语言」设置走（pet:config 广播 / petSpeak 返回的 lang），与朗读音色解耦 ---- */
+   短语语言跟「语音语种」设置走（pet:config 广播 / petSpeak 返回的 lang），与朗读音色解耦 ---- */
 const TOUCH_VOICE = {
   zh: {
     head: ['唔…不要揉头啦，头发会乱掉的', '嗯？摸头的话……就饶你这一次', '呜…头要被摸开了啦'],
@@ -676,231 +676,11 @@ async function showVrm (v) {
   loop()
 }
 
-/* ---------------- 悬停聊天（气泡回复）+ 语音捕捉 ---------------- */
-function setupChat () {
-  const stage = $('petStage')
-  const panel = $('petChat')
-  const bubble = $('petBubble')
-  const input = $('petChatInput')
-  const mic = $('petMic')
-  const sendBtn = $('petSendBtn')
-  if (!panel || !input || !stage) return
-  let hideTimer = null
-  let generating = false
-  let bubbleTimer = null
-
-  // 面板定位：贴角色正下方（水平居中），超出屏幕则夹回；下方放不下翻到角色上方
-  function positionChat () {
-    if (panel.hidden) return
-    const r = stage.getBoundingClientRect()
-    const pw = panel.offsetWidth || 300
-    const ph = panel.offsetHeight || 120
-    let x = r.left + r.width / 2 - pw / 2
-    x = Math.max(8, Math.min(window.innerWidth - pw - 8, x))
-    let y = r.bottom + 8
-    if (y + ph > window.innerHeight - 8) y = Math.max(8, r.top - ph - 8)
-    panel.style.left = Math.round(x) + 'px'
-    panel.style.top = Math.round(y) + 'px'
-  }
-  // 气泡定位：贴角色头顶（水平居中），强制夹屏；放不下时移到角色下方
-  function positionBubble () {
-    if (bubble.hidden) return
-    const r = stage.getBoundingClientRect()
-    const bw = bubble.offsetWidth || 260
-    const bh = bubble.offsetHeight || 60
-    let x = r.left + r.width / 2 - bw / 2
-    x = Math.max(8, Math.min(window.innerWidth - bw - 8, x))
-    let y = r.top - bh - 10
-    if (y < 8) y = Math.min(window.innerHeight - bh - 8, r.bottom + 10)
-    bubble.style.left = Math.round(x) + 'px'
-    bubble.style.top = Math.round(y) + 'px'
-  }
-  // 气泡显示/更新（流式期间不淡出），完成后停留 8 秒淡出
-  const BUBBLE_KEEP = 8000
-  function bubbleShow (text) {
-    clearTimeout(bubbleTimer)
-    bubble.classList.remove('fading')
-    bubble.hidden = false
-    bubble.textContent = text
-    requestAnimationFrame(positionBubble)
-  }
-  function bubbleKeep () {
-    clearTimeout(bubbleTimer)
-    bubbleTimer = setTimeout(() => {
-      bubble.classList.add('fading')
-      bubbleTimer = setTimeout(() => { bubble.hidden = true; bubble.classList.remove('fading') }, 400)
-    }, BUBBLE_KEEP)
-  }
-
-  const show = () => {
-    clearTimeout(hideTimer)
-    panel.hidden = false
-    // 面板贴角色正下方，强制夹在屏内（角色拖到边缘时也不会跑出屏幕）
-    requestAnimationFrame(positionChat)
-    // overlay 窗口 focusable:false（不抢焦点），输入时动态放开，键盘才能进 textarea
-    try { window.aura.petChatFocus(true) } catch {}
-  }
-  const maybeHide = () => {
-    clearTimeout(hideTimer)
-    hideTimer = setTimeout(() => {
-      if (document.activeElement !== input && !mic.classList.contains('on')) {
-        panel.hidden = true
-        try { window.aura.petChatFocus(false) } catch {}
-      }
-    }, 1800)
-  }
-  stage.addEventListener('pointerenter', show)
-  stage.addEventListener('pointerleave', maybeHide)
-  panel.addEventListener('pointerenter', show)
-  panel.addEventListener('pointerleave', maybeHide)
-
-  const send = () => {
-    const t = input.value.trim()
-    if (!t || generating) return
-    input.value = ''
-    input.style.height = 'auto'
-    generating = true
-    // 发送新消息即打断正在播的语音（对齐参考 _cancelSpeechPlayback）
-    stopVoice()
-    bubbleShow('…')
-    window.aura.petChatSend(t)
-  }
-  sendBtn.addEventListener('click', send)
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } })
-  input.addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(72, this.scrollHeight) + 'px' })
-
-  let lastDeltaSeq = null
-  window.aura.onPetDelta(({ seq, text }) => {
-    // seq 变化 = 新一轮生成（含语言守卫纠正重生成）→ 气泡从空开始而不是追加
-    if (seq !== lastDeltaSeq) { lastDeltaSeq = seq; bubbleShow(String(text || '')) ; return }
-    // 同一轮流式追加到气泡（textContent 直接累加）
-    bubbleShow((bubble.textContent === '…' ? '' : bubble.textContent) + text)
-  })
-  window.aura.onPetDone(({ content, audio }) => {
-    generating = false
-    bubbleShow(content || '（空回复）')
-    bubbleKeep()
-    // 语音回复：走全局单实例 playVoice（新语音自动打断上一条，杜绝重叠回声）
-    if (audio && audio.url) playVoice(audio.url, audio.speed)
-  })
-  window.aura.onPetError(({ message, partial }) => {
-    generating = false
-    // 错误也用气泡显示，但压缩长度（LLM 报错的 JSON 很长）
-    const msg = String(message || '出错了').replace(/\s+/g, ' ').slice(0, 140)
-    bubbleShow((partial ? partial + ' ' : '') + '⚠ ' + msg)
-    bubbleKeep()
-  })
-  window.addEventListener('resize', () => { requestAnimationFrame(() => { positionChat(); positionBubble() }) })
-
-  /* ---- 语音捕捉：开了就持续捕捉（VAD 断句 → 识别 → 直接发送） ---- */
-  let on = false
-  let stream = null
-  let analyser = null
-  let audioCtx = null
-  let vadTimer = null
-  let recorder = null
-  let chunks = []
-  let speaking = false
-  let silenceSince = 0
-  const KEY = 'auraPetMicOn'
-
-  const blobToB64 = (blob) => new Promise((ok, bad) => {
-    const r = new FileReader()
-    r.onload = () => ok(String(r.result).split(',')[1] || '')
-    r.onerror = () => bad(new Error('read 失败'))
-    r.readAsDataURL(blob)
-  })
-
-  async function flushRecording () {
-    const rec = recorder
-    recorder = null
-    speaking = false
-    if (!rec || rec.state === 'inactive') return
-    await new Promise((ok) => { rec.onstop = ok; rec.stop() })
-    const blob = new Blob(chunks, { type: 'audio/webm' })
-    chunks = []
-    if (blob.size < 2000) return // 太短，视为噪声
-    try {
-      const b64 = await blobToB64(blob)
-      const r = await window.aura.petTranscribe(b64, 'audio/webm')
-      if (r && r.ok && r.text) {
-        generating = true
-        bubbleShow('…')
-        window.aura.petChatSend(r.text)
-      } else if (r && r.message && !/未知|empty/i.test(r.message)) {
-        bubbleShow('⚠ 语音识别失败：' + r.message)
-        bubbleKeep()
-      }
-    } catch (e) { bubbleShow('⚠ 语音识别异常: ' + e.message); bubbleKeep() }
-  }
-
-  function startVad () {
-    const buf = new Uint8Array(analyser.fftSize)
-    vadTimer = setInterval(() => {
-      analyser.getByteTimeDomainData(buf)
-      let sum = 0
-      for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v }
-      const rms = Math.sqrt(sum / buf.length)
-      const now = Date.now()
-      if (rms > 0.045) {
-        if (!speaking) {
-          speaking = true
-          chunks = []
-          try {
-            recorder = new MediaRecorder(stream)
-            recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data) }
-            recorder.start()
-          } catch { recorder = null; speaking = false }
-        }
-        silenceSince = now
-      } else if (speaking && now - silenceSince > 1400) {
-        flushRecording()
-      }
-    }, 120)
-  }
-
-  async function micOn () {
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      audioCtx = new AudioContext()
-      analyser = audioCtx.createAnalyser()
-      analyser.fftSize = 1024
-      audioCtx.createMediaStreamSource(stream).connect(analyser)
-      on = true
-      mic.classList.add('on')
-      show()
-      startVad()
-    } catch (e) {
-      bubbleShow('⚠ 麦克风不可用: ' + (e.message || e.name))
-      bubbleKeep()
-      on = false
-    }
-  }
-  function micOff () {
-    on = false
-    mic.classList.remove('on')
-    clearInterval(vadTimer)
-    vadTimer = null
-    if (recorder && recorder.state === 'recording') { try { recorder.stop() } catch {} }
-    recorder = null
-    speaking = false
-    if (stream) stream.getTracks().forEach((t) => t.stop())
-    stream = null
-    if (audioCtx) { try { audioCtx.close() } catch {} }
-    audioCtx = null
-  }
-  mic.addEventListener('click', () => {
-    if (on) { micOff(); localStorage.setItem(KEY, '0') } else { micOn(); localStorage.setItem(KEY, '1') }
-  })
-  // 上次开着 → 默认继续捕捉（用户要求：开了就默认捕捉）
-  if (localStorage.getItem(KEY) === '1') setTimeout(micOn, 1500)
-  return { hide: () => { panel.hidden = true } }
-}
 function setupDrag () {
   const el = $('petStage')
   let drag = null
   let down = null
-  // 位置统一写 :root 的 --pet-right/--pet-bottom（px）：petstage 与 petchat 面板共用，拖动时面板跟随
+  // 位置统一写 :root 的 --pet-right/--pet-bottom（px）
   const applyPos = (right, bottom) => {
     document.documentElement.style.setProperty('--pet-right', right + 'px')
     document.documentElement.style.setProperty('--pet-bottom', bottom + 'px')
@@ -932,8 +712,6 @@ function setupDrag () {
     const bottom = Math.round(Math.max(0, Math.min(window.innerHeight - 160, drag.bottom + (drag.y - e.clientY))))
     petPos = { right, bottom }
     applyPos(right, bottom)
-    // 面板开着时跟随角色（positionChat 自带屏内夹取，不会跑出屏幕）
-    if (!$('petChat').hidden) requestAnimationFrame(positionChat)
   })
   el.addEventListener('pointerup', (e) => {
     if (!drag) return
@@ -954,7 +732,6 @@ function setupDrag () {
 
 /* ---------------- 启动 & 刷新 ---------------- */
 ;(async () => {
-  const chat = setupChat()
   setupDrag()
   // 视觉跟踪光标（主进程 80ms 轮询广播）+ 角色大小配置
   window.aura.onCursor((p) => { cursorScreen = p; cursorMoveAt = performance.now() })
@@ -970,7 +747,7 @@ function setupDrag () {
   const st = await window.aura.petState()
   if (st && st.visible && st.char) await showVisual(st.char)
   window.aura.onPetState(async (s) => {
-    if (!s || !s.visible) { disposeSpine(); disposeVrm(); currentSig = ''; if (chat) chat.hide(); return }
+    if (!s || !s.visible) { disposeSpine(); disposeVrm(); currentSig = ''; return }
     if (s.char) await showVisual(s.char)
   })
   // 兼容旧刷新频道（companion 侧角色保存）

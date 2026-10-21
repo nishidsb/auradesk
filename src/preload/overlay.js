@@ -13,7 +13,6 @@ contextBridge.exposeInMainWorld('aura', {
   setShape: (rects) => ipcRenderer.send('overlay:set-shape', rects),
   reportError: (kind, msg, stack) => ipcRenderer.send('overlay:renderer-error', kind, msg, stack),
   openSettings: () => ipcRenderer.send('overlay:open-settings'),
-  openCompanion: () => ipcRenderer.send('overlay:open-companion'),
   hide: () => ipcRenderer.send('overlay:hide'),
   quit: () => ipcRenderer.send('overlay:quit'),
   launch: (id) => ipcRenderer.invoke('overlay:launch', id),
@@ -40,27 +39,5 @@ contextBridge.exposeInMainWorld('aura', {
   audioDevs: () => ipcRenderer.invoke('overlay:audio-devs'),
   setDev: (flow, id) => ipcRenderer.send('overlay:set-dev', flow, id),
   onDevs: (cb) => ipcRenderer.on('overlay:audio-devs', (_e, s) => cb(s)),
-  showDesktop: () => ipcRenderer.send('overlay:show-desktop'),
-  // ---- 桌宠（overlay 内嵌渲染）：角色状态 + 资产加载 ----
-  petState: () => ipcRenderer.invoke('pet:state'),
-  petGetChar: () => ipcRenderer.invoke('pet:get-char'),
-  assetUrl: (p) => ipcRenderer.invoke('companion:asset-url', p),
-  assetData: (p) => ipcRenderer.invoke('companion:asset-data', p),
-  onPetState: (cb) => ipcRenderer.on('pet:state', (_e, s) => cb(s)),
-  petSnapshot: (tag) => ipcRenderer.invoke('pet:snapshot', tag),
-  logImage: (name, dataUrl) => ipcRenderer.invoke('companion:log-image', name, dataUrl),
-  // ---- 桌宠增强：视觉跟踪光标 / 气泡聊天 / 语音捕捉 / 角色大小 ----
-  onCursor: (cb) => ipcRenderer.on('overlay:cursor', (_e, p) => cb(p)),
-  petSettings: () => ipcRenderer.invoke('companion:settings'),
-  petChatSend: (text) => ipcRenderer.invoke('companion:send', text),
-  // 聊天面板显示时让 overlay 窗口可聚焦（收键盘），隐藏时切回不可聚焦
-  petChatFocus: (on) => ipcRenderer.invoke('pet:chat-focus', on),
-  petChatStop: () => ipcRenderer.invoke('companion:stop'),
-  petTranscribe: (b64, mime) => ipcRenderer.invoke('companion:transcribe', b64, mime),
-  // 触摸反应语音：用当前 TTS 档位合成一句反应语（{ok,url,speed} 或 {fallback}）
-  petSpeak: (text) => ipcRenderer.invoke('companion:tts', String(text || '').slice(0, 200)),
-  onPetDelta: (cb) => ipcRenderer.on('companion:delta', (_e, d) => cb(d)),
-  onPetDone: (cb) => ipcRenderer.on('companion:done', (_e, d) => cb(d)),
-  onPetError: (cb) => ipcRenderer.on('companion:error', (_e, d) => cb(d)),
-  onPetConfig: (cb) => ipcRenderer.on('pet:config', (_e, c) => cb(c))
+  showDesktop: () => ipcRenderer.send('overlay:show-desktop')
 })
